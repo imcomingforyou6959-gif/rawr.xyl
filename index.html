@@ -3,383 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>rawr.xyz | v1.6.5 Protocol</title>
+    <title>rawr.xyz | v1.6.5 · Discord UI</title>
     <link rel="icon" type="image/png" href="logo.png">
 
-    <!-- Tailwind + Fonts -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide for crisp icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: #070707; 
-            overflow-x: hidden; 
-            color: white; 
-            user-select: none;
-        }
-
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-
-        /* Glassmorphic refined */
-        .glass {
-            background: rgba(12, 12, 15, 0.55);
-            backdrop-filter: blur(14px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-        
-        .glass-card {
-            background: rgba(8, 8, 12, 0.65);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            transition: all 0.25s ease;
-        }
-        
-        .glass-card:hover {
-            border-color: rgba(239, 68, 68, 0.6);
-            box-shadow: 0 0 28px rgba(239, 68, 68, 0.15);
-        }
-
-        .glow-hover {
-            transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-        }
-        
-        .glow-hover:hover {
-            transform: translateY(-4px);
-            filter: drop-shadow(0 0 12px rgba(239, 68, 68, 0.5));
-        }
-
-        /* Custom range */
-        input[type='range'] {
-            -webkit-appearance: none;
-            background: rgba(255, 255, 255, 0.08);
-            height: 4px;
-            border-radius: 8px;
-        }
-        input[type='range']:focus { outline: none; }
-        input[type='range']::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #ef4444;
-            cursor: pointer;
-            box-shadow: 0 0 12px #ef4444;
-            border: none;
-        }
-
-        /* scanline premium */
-        .scanline::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.08) 0px, rgba(0, 0, 0, 0.08) 2px, transparent 2px, transparent 6px);
-            pointer-events: none;
-            z-index: 1;
-            border-radius: inherit;
-        }
-        
-        /* pulse animation for status */
-        @keyframes softPulse {
-            0%, 100% { opacity: 0.6; transform: scale(0.95);}
-            50% { opacity: 1; transform: scale(1.05);}
-        }
-        .pulse-ring {
-            animation: softPulse 2s infinite ease;
-        }
-        
-        /* Custom scroll */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #0a0a0a; }
-        ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
-    </style>
 
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: { background: '#070707', primary: '#ef4444', dark: '#0F0F11' },
-                    animation: {
-                        'spin-slow': 'spin 12s linear infinite',
-                        'float': 'float 5s ease-in-out infinite',
-                    },
-                    keyframes: {
-                        float: { '0%, 100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-12px)' } }
+                    colors: { 
+                        d_darker: '#1e1f22',
+                        d_dark: '#2b2d31',
+                        d_gray: '#313338',
+                        primary: '#ef4444' 
                     }
                 }
             }
         }
     </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #1e1f22; color: #dbdee1; margin: 0; overflow: hidden; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e1f22; }
+        ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
+        .discord-shadow { box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        .glass-card-bg { background: rgba(43, 45, 49, 0.6); backdrop-filter: blur(6px); }
+        /* custom range */
+        input[type='range'] {
+            -webkit-appearance: none;
+            background: #1e1f22;
+            height: 4px;
+            border-radius: 4px;
+        }
+        input[type='range']::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            box-shadow: 0 0 6px #ef4444;
+            border: none;
+        }
+    </style>
 </head>
 <body>
 <div id="root"></div>
 
-<script type="text/babel" src="RainBackground.jsx?v=3.0"></script>
-<script type="text/babel" src="ScriptBlock.jsx?v=2.5"></script>
-
 <script type="text/babel">
     const { motion, AnimatePresence } = window.Motion;
 
-    // improved Icon renderer with dynamic updates
-    const DynamicIcon = ({ name, size = 22, className = "", strokeWidth = 1.5 }) => {
+    // ------------------------------
+    // 1. SEASONAL RAIN BACKGROUND (full seasonal effect)
+    // ------------------------------
+    const SeasonalRainBackground = ({ speed = 1 }) => {
+        const canvasRef = React.useRef(null);
+        const mouse = React.useRef({ x: 0, y: 0 });
+        const animationId = React.useRef(null);
+        
+        const getSeason = () => {
+            const month = new Date().getUTCMonth();
+            if ([11, 0, 1].includes(month)) return { name: 'winter', color: '180, 220, 255', count: 420, type: 'snow', glow: '140,200,255' };
+            if ([2, 3, 4].includes(month)) return { name: 'spring', color: '255, 170, 200', count: 380, type: 'petal', glow: '255,140,180' };
+            if ([5, 6, 7].includes(month)) return { name: 'summer', color: '239, 68, 68', count: 650, type: 'rain', glow: '255,100,100' };
+            return { name: 'autumn', color: '255, 140, 60', count: 450, type: 'leaf', glow: '255,120,40' };
+        };
+
+        React.useEffect(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const season = getSeason();
+            let particles = [];
+            
+            const resize = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                initParticles();
+            };
+            
+            const initParticles = () => {
+                particles = [];
+                for (let i = 0; i < season.count; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        length: season.type === 'rain' ? Math.random() * 24 + 12 : Math.random() * 8 + 4,
+                        size: Math.random() * 2.5 + 1,
+                        speedY: (Math.random() * (season.type === 'snow' ? 2 : 8) + 2.5) * (season.type === 'leaf' ? 0.9 : 1),
+                        speedX: (Math.random() - 0.5) * (season.type === 'snow' ? 0.5 : 1.2),
+                        opacity: Math.random() * 0.5 + 0.2,
+                        drift: (Math.random() - 0.5) * 1.2,
+                        spin: Math.random() * Math.PI * 2,
+                    });
+                }
+            };
+            
+            const handleMouse = (e) => {
+                mouse.current.x = (e.clientX / window.innerWidth) - 0.5;
+                mouse.current.y = (e.clientY / window.innerHeight) - 0.5;
+            };
+            
+            const drawParticle = (p, offsetX, tiltX) => {
+                const xPos = p.x + offsetX + p.drift * 0.5;
+                const yPos = p.y;
+                
+                if (season.type === 'rain') {
+                    ctx.beginPath();
+                    ctx.moveTo(xPos + tiltX * 0.7, yPos);
+                    ctx.lineTo(xPos + tiltX * 0.7 + 4, yPos + p.length);
+                    ctx.strokeStyle = `rgba(${season.color}, ${p.opacity + 0.1})`;
+                    ctx.lineWidth = p.size * 0.7;
+                    ctx.stroke();
+                } 
+                else if (season.type === 'snow') {
+                    ctx.beginPath();
+                    ctx.arc(xPos, yPos, p.size * 0.7, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.2})`;
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(xPos - 1, yPos - 1, p.size * 0.3, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255,255,255,0.5)`;
+                    ctx.fill();
+                }
+                else if (season.type === 'petal') {
+                    ctx.save();
+                    ctx.translate(xPos, yPos);
+                    ctx.rotate(p.spin);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, p.size * 1.2, p.size * 0.7, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.15})`;
+                    ctx.fill();
+                    ctx.restore();
+                }
+                else if (season.type === 'leaf') {
+                    ctx.save();
+                    ctx.translate(xPos, yPos);
+                    ctx.rotate(p.spin);
+                    ctx.beginPath();
+                    ctx.moveTo(0, -p.size);
+                    ctx.lineTo(p.size * 0.7, 0);
+                    ctx.lineTo(0, p.size);
+                    ctx.lineTo(-p.size * 0.7, 0);
+                    ctx.closePath();
+                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.2})`;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            };
+            
+            const animate = () => {
+                if (!ctx || !canvas) return;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const mouseOffsetX = mouse.current.x * 55;
+                const tiltX = mouse.current.x * (season.type === 'rain' ? 6 : 2.5);
+                
+                for (let p of particles) {
+                    p.y += p.speedY * speed;
+                    p.x += (p.speedX + mouse.current.x * 2) * speed;
+                    p.spin += 0.03;
+                    
+                    if (p.y > canvas.height) {
+                        p.y = -30;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    if (p.x > canvas.width) p.x = 0;
+                    if (p.x < 0) p.x = canvas.width;
+                    
+                    drawParticle(p, mouseOffsetX, tiltX);
+                }
+                animationId.current = requestAnimationFrame(animate);
+            };
+            
+            window.addEventListener('resize', resize);
+            window.addEventListener('mousemove', handleMouse);
+            resize();
+            animate();
+            
+            return () => {
+                window.removeEventListener('resize', resize);
+                window.removeEventListener('mousemove', handleMouse);
+                if (animationId.current) cancelAnimationFrame(animationId.current);
+            };
+        }, [speed]);
+        
+        return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-0" style={{ filter: 'blur(0.6px)' }} />;
+    };
+    
+    // Icon helper (lucide)
+    const Icon = ({ name, size = 20, className = "" }) => {
         const ref = React.useRef(null);
         React.useEffect(() => {
-            if (ref.current && lucide && lucide.createIcons) {
-                lucide.createIcons({ icons: { [name]: true } });
-            }
+            if (ref.current && lucide) lucide.createIcons();
         }, [name]);
-        return <i ref={ref} data-lucide={name} class={className} style={{ width: size, height: size, strokeWidth: strokeWidth }}></i>;
+        return <i ref={ref} data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
     };
-
-    // XBOX + ROBLOX custom icons with rich branding (using brand icons + fallback)
-    const BrandIcon = ({ type, size = 24 }) => {
-        const iconMap = {
-            xbox: 'gamepad-2',
-            roblox: 'crown'
-        };
-        const label = type === 'xbox' ? 'Xbox' : 'Roblox';
+    
+    // ScriptBlock (terminal animation)
+    const ScriptBlock = () => {
+        const [message, setMessage] = React.useState("> system_ready");
+        React.useEffect(() => {
+            const texts = ["> session active", "> rawr.xyz online", "> seasonal engine v2", "> interactive canvas", "> rawr cross loaded"];
+            let idx = 0;
+            const interval = setInterval(() => {
+                setMessage(texts[idx % texts.length]);
+                idx++;
+            }, 2200);
+            return () => clearInterval(interval);
+        }, []);
         return (
-            <div className="relative flex items-center justify-center">
-                <DynamicIcon name={iconMap[type]} size={size} className="text-current" strokeWidth={1.8} />
-                <span className="absolute -bottom-1 -right-1 text-[8px] font-mono font-black bg-black/70 px-1 rounded-full">{type === 'xbox' ? 'X' : 'R'}</span>
+            <div className="bg-d_darker/60 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-primary font-mono text-sm">
+                    <Icon name="terminal" size={16} />
+                    <span className="tracking-wider font-bold">rawr@shell:~$</span>
+                    <span className="text-white/80">{message}</span>
+                </div>
+                <div className="h-[1px] w-12 bg-primary/40 mt-2 rounded-full"></div>
             </div>
         );
     };
-
-    function Home() {
-        const [page, setPage] = React.useState('main'); 
-        const [intensity, setIntensity] = React.useState(1.2);
-        const [discordStatus, setDiscordStatus] = React.useState("⟳ SYNC");
-        const [hoverGlow, setHoverGlow] = React.useState(false);
-
-        React.useEffect(() => {
-            fetch(`https://discord.com/api/guilds/1476151042759721002/widget.json`)
-                .then(res => res.ok ? res.json() : Promise.reject())
-                .then(data => setDiscordStatus(`${data.presence_count || 9} online`))
-                .catch(() => setDiscordStatus("● active"));
-        }, []);
-
-        // Xbox & Roblox handlers
-        const xboxProfile = "https://www.xbox.com/en-us/play/user/rawr%20cross";  // custom: rawr cross xbox gamertag style
-        const robloxProfile = "https://www.roblox.com/users/engravingangels/profile"; // engravingangels roblox
+    
+    // Main App
+    function App() {
+        const [channel, setChannel] = React.useState('welcome');
+        const [speed, setSpeed] = React.useState(1.2);
+        const [discordStatus, setDiscordStatus] = React.useState("⟳ checking");
         
-        // personal gamer info
-        const gamerTag = "rawr cross";
-        const robloxName = "engravingangels";
-
+        React.useEffect(() => {
+            fetch("https://discord.com/api/guilds/1476151042759721002/widget.json")
+                .then(res => res.ok ? res.json() : Promise.reject())
+                .then(data => setDiscordStatus(`${data.presence_count || 0} online`))
+                .catch(() => setDiscordStatus("active"));
+        }, []);
+        
+        // Xbox & Roblox links
+        const xboxUrl = "https://www.xbox.com/en-us/play/user/rawr%20cross";
+        const robloxUrl = "https://www.roblox.com/users/engravingangels/profile";
+        
         return (
-            <div className="relative min-h-screen flex flex-col items-center">
-                {/* Rain background with intensity control */}
-                <RainBackground speed={intensity} />
+            <div className="flex h-screen w-screen overflow-hidden relative">
+                {/* Seasonal animated background */}
+                <SeasonalRainBackground speed={speed} />
                 
-                {/* Navigation - refined neon style */}
-                <nav className="fixed top-6 z-50 glass rounded-3xl p-1.5 flex gap-1 shadow-2xl backdrop-blur-xl border border-white/10">
-                    {[
-                        { id: 'main', label: '⟡ PROTOCOL' },
-                        { id: 'about me', label: '⚡ PROFILE' }
-                    ].map(target => (
-                        <button 
-                            key={target.id}
-                            onClick={() => setPage(target.id)}
-                            className={`px-6 md:px-10 py-2.5 rounded-2xl text-[11px] font-mono tracking-[0.25em] font-bold transition-all duration-300 uppercase ${page === target.id ? 'bg-primary text-white shadow-[0_0_18px_#ef4444]' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                {/* 1. SERVER RAIL */}
+                <div className="w-[72px] bg-d_darker flex flex-col items-center py-3 gap-2 z-50">
+                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white mb-2 cursor-pointer transition-all hover:rounded-xl shadow-lg">
+                        <Icon name="terminal" size={24} />
+                    </div>
+                    <div className="w-8 h-[2px] bg-d_dark rounded-full mb-2"></div>
+                    <div className="w-12 h-12 bg-d_dark rounded-full flex items-center justify-center hover:bg-primary transition-all hover:rounded-xl cursor-pointer">
+                        <Icon name="code" size={20} />
+                    </div>
+                </div>
+                
+                {/* 2. CHANNEL SIDEBAR */}
+                <div className="w-60 bg-d_dark flex flex-col z-40">
+                    <div className="h-12 border-b border-d_darker flex items-center px-4 font-bold text-white shadow-sm tracking-wide">
+                        RAWR.XYZ
+                    </div>
+                    <div className="flex-1 p-2 space-y-1 mt-2">
+                        <p className="text-[11px] font-bold text-white/40 uppercase px-2 mb-2 tracking-wider">Information</p>
+                        <div 
+                            onClick={() => setChannel('welcome')}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer group ${channel === 'welcome' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white/70'}`}
                         >
-                            {target.label}
-                        </button>
-                    ))}
-                </nav>
-
-                <main className="relative z-10 flex flex-col items-center w-full px-5 pt-36 pb-20 max-w-5xl">
-                    <AnimatePresence mode="wait">
-                        {page === 'main' ? (
-                            <motion.div 
-                                key="main"
-                                initial={{ opacity: 0, y: 40 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -40 }}
-                                transition={{ type: "spring", stiffness: 100, damping: 18 }}
-                                className="flex flex-col items-center gap-12 w-full"
-                            >
-                                <div className="flex flex-col items-center gap-6">
-                                    <motion.img 
-                                        src="logo.png" 
-                                        className="w-32 md:w-56 object-contain drop-shadow-[0_0_35px_rgba(239,68,68,0.4)] rounded-3xl" 
-                                        animate={{ y: [0, -12, 0], rotateZ: [0, 1, 0, -1, 0] }} 
-                                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }} 
-                                        onError={(e) => { e.target.src = 'https://placehold.co/200x200/1a1a1a/ef4444?text=RAW'; }}
-                                    />
-                                    <div className="text-center">
-                                        <h1 className="text-6xl md:text-8xl lg:text-9xl font-black font-mono tracking-tighter uppercase bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-primary/70">
-                                            rawr<span className="text-primary drop-shadow-[0_0_15px_#ef4444]">.xyz</span>
-                                        </h1>
-                                        <div className="flex justify-center gap-2 mt-3">
-                                            <div className="h-[2px] w-16 bg-primary/60 rounded-full"></div>
-                                            <span className="text-[10px] font-mono text-primary/80 tracking-[0.2em]">v1.6.5 ENCIPHERED</span>
-                                            <div className="h-[2px] w-16 bg-primary/60 rounded-full"></div>
-                                        </div>
+                            <Icon name="hash" size={18} className="opacity-50" />
+                            <span className="font-medium">welcome</span>
+                        </div>
+                        <div 
+                            onClick={() => setChannel('about')}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer group ${channel === 'about' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white/70'}`}
+                        >
+                            <Icon name="user" size={18} className="opacity-50" />
+                            <span className="font-medium">about-me</span>
+                        </div>
+                        
+                        <p className="text-[11px] font-bold text-white/40 uppercase px-2 mb-2 mt-6 tracking-wider">Gaming</p>
+                        <div className="flex items-center gap-2 px-2 py-1.5 text-white/40 hover:text-white/70 cursor-pointer">
+                            <Icon name="gamepad-2" size={18} className="opacity-50" />
+                            <span className="font-medium">rawr cross</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-2 py-1.5 text-white/40 hover:text-white/70 cursor-pointer">
+                            <Icon name="crown" size={18} className="opacity-50" />
+                            <span className="font-medium">engravingangels</span>
+                        </div>
+                    </div>
+                    
+                    {/* USER PANEL (bottom left) */}
+                    <div className="bg-[#232428] p-2 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <img src="logo2.PNG" className="w-8 h-8 rounded-full object-cover border border-primary/30" onError={(e) => e.target.src='logo2.png'} />
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#232428] rounded-full"></div>
+                            </div>
+                            <div className="leading-tight">
+                                <p className="text-xs font-bold text-white">Onlyonestands</p>
+                                <p className="text-[9px] text-white/40 font-mono">#0001</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-1 text-white/60">
+                            <Icon name="mic" size={14} className="hover:text-white cursor-pointer" />
+                            <Icon name="headphones" size={14} className="hover:text-white cursor-pointer" />
+                            <Icon name="settings" size={14} className="hover:text-white cursor-pointer" />
+                        </div>
+                    </div>
+                </div>
+                
+                {/* 3. MAIN CHAT AREA */}
+                <div className="flex-1 flex flex-col bg-d_gray/30 backdrop-blur-sm relative z-10">
+                    <div className="h-12 border-b border-d_darker flex items-center px-4 justify-between bg-d_gray/60 backdrop-blur-md z-30">
+                        <div className="flex items-center gap-2">
+                            <Icon name="hash" size={20} className="text-white/40" />
+                            <span className="font-bold text-white">{channel === 'welcome' ? 'welcome' : 'about-me'}</span>
+                        </div>
+                        <div className="flex gap-4 text-white/60">
+                            <Icon name="bell" size={20} />
+                            <Icon name="pin" size={20} />
+                            <div className="bg-d_darker px-2 py-0.5 rounded text-xs font-mono">v1.6.5</div>
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 z-20">
+                        <AnimatePresence mode="wait">
+                            {channel === 'welcome' ? (
+                                <motion.div key="welcome" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="max-w-2xl mx-auto w-full">
+                                    <div className="w-16 h-16 bg-d_dark rounded-2xl flex items-center justify-center mb-5 shadow-lg">
+                                        <Icon name="hash" size={36} className="text-primary" />
                                     </div>
-                                </div>
-
-                                {/* ScriptBlock component (dynamic typing) */}
-                                <ScriptBlock />
-
-                                {/* Engine slider + gaming vibe */}
-                                <div className="w-full max-w-lg glass-card rounded-3xl p-6 flex items-center gap-5 shadow-xl border-white/10">
-                                    <div className="flex items-center gap-2">
-                                        <DynamicIcon name="cpu" size={22} className="text-primary/80" />
-                                        <span className="text-[10px] font-mono text-white/40 font-bold tracking-widest">RAIN INTENSITY</span>
-                                    </div>
-                                    <input 
-                                        type="range" min="0.2" max="2.8" step="0.05" 
-                                        value={intensity} 
-                                        onChange={(e) => setIntensity(parseFloat(e.target.value))} 
-                                        className="flex-1 cursor-pointer h-1.5 rounded-full bg-white/10" 
-                                    />
-                                    <span className="text-sm font-mono font-bold text-primary tabular-nums bg-black/30 px-3 py-1 rounded-full">{intensity.toFixed(1)}x</span>
-                                </div>
-                                
-                                {/* Hint */}
-                                <div className="text-center text-white/10 text-[9px] font-mono tracking-widest uppercase mt-2">
-                                    ⚡ engine raw power · dynamic environment
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div 
-                                key="about"
-                                initial={{ opacity: 0, scale: 0.92 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.92 }}
-                                transition={{ duration: 0.4 }}
-                                className="flex flex-col items-center gap-8 w-full max-w-2xl"
-                            >
-                                {/* PROFILE CARD - Enhanced with Xbox & Roblox integrations */}
-                                <div className="w-full glass-card rounded-[3rem] p-8 md:p-10 flex flex-col items-center gap-6 shadow-2xl relative overflow-hidden group scanline border-primary/20">
-                                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-red-500 to-primary/30"></div>
+                                    <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tight">Welcome to rawr.xyz</h1>
+                                    <p className="text-white/50 mb-6 border-b border-white/10 pb-5 italic">This is the start of your rawr.xyz hub.</p>
                                     
-                                    {/* Avatar with ring */}
-                                    <div className="relative">
-                                        <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl animate-pulse"></div>
-                                        <img 
-                                            src="logo2.PNG" 
-                                            className="w-36 h-36 md:w-48 md:h-48 rounded-full border-[5px] border-primary/70 shadow-2xl object-cover transition-all duration-500 group-hover:scale-105" 
-                                            onError={(e) => { e.target.src = 'https://via.placeholder.com/200/111111/ef4444?text=RAW'; }}
+                                    {/* ScriptBlock component */}
+                                    <ScriptBlock />
+                                    
+                                    {/* Engine control slider */}
+                                    <div className="mt-6 bg-d_dark/60 rounded-xl p-5 border border-white/10 discord-shadow">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Icon name="cpu" size={18} className="text-primary" />
+                                            <span className="text-[11px] font-mono font-bold text-white/60 tracking-wider">BACKGROUND INTENSITY</span>
+                                        </div>
+                                        <input 
+                                            type="range" min="0.3" max="2.5" step="0.05" 
+                                            value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                                            className="w-full cursor-pointer"
                                         />
-                                        <div className="absolute bottom-3 right-2 w-5 h-5 bg-green-500 border-[3px] border-black rounded-full shadow-lg pulse-ring"></div>
-                                    </div>
-                                    
-                                    <div className="text-center space-y-2">
-                                        <h2 className="text-4xl md:text-5xl font-mono font-black tracking-tighter bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">Onlyonestands</h2>
-                                        <div className="flex justify-center gap-3">
-                                            <span className="px-4 py-1 rounded-full bg-primary/20 text-primary text-[11px] font-mono font-bold tracking-wider">◉ PROTOCOL LEAD</span>
+                                        <div className="flex justify-between text-[10px] text-white/30 mt-2">
+                                            <span>calm</span>
+                                            <span className="text-primary font-mono">{speed.toFixed(1)}x</span>
+                                            <span>storm</span>
                                         </div>
                                     </div>
-
-                                    {/* Bio Text */}
-                                    <div className="text-center max-w-md">
-                                        <p className="text-white/70 text-sm leading-relaxed font-medium">
-                                            Hi, I'm <span className="text-white border-b border-primary font-semibold">Tie</span>. Small coder, builder, and digital architect.  
-                                            I craft experimental interfaces & push the raw edge of the web.
-                                        </p>
-                                    </div>
-
-                                    {/* GAMER IDENTITY SECTION - XBOX + ROBLOX PREMIUM */}
-                                    <div className="w-full mt-2 grid grid-cols-2 gap-4">
-                                        {/* Xbox Card with custom "rawr cross" */}
-                                        <a href={xboxProfile} target="_blank" rel="noopener noreferrer" className="glass-card rounded-2xl p-4 flex flex-col items-center gap-2 transition-all duration-300 hover:bg-primary/10 border-white/10 hover:border-primary/50 group">
-                                            <div className="bg-gradient-to-br from-green-700/30 to-emerald-900/30 p-3 rounded-2xl">
-                                                <BrandIcon type="xbox" size={32} />
+                                    
+                                    <div className="text-[10px] text-white/20 font-mono text-center mt-8 tracking-widest">✦ seasonal particle system active ✦</div>
+                                </motion.div>
+                            ) : (
+                                <motion.div key="about" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="max-w-3xl mx-auto w-full">
+                                    {/* Profile card - full old features */}
+                                    <div className="bg-d_dark/70 rounded-2xl p-6 border border-white/10 backdrop-blur-sm discord-shadow">
+                                        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                                            <div className="relative">
+                                                <img src="logo2.PNG" className="w-28 h-28 rounded-2xl border-2 border-primary/40 shadow-xl object-cover" onError={(e) => e.target.src='logo2.png'} />
+                                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-d_dark rounded-full"></div>
                                             </div>
-                                            <span className="font-mono text-sm font-bold tracking-wide">XBOX</span>
-                                            <span className="text-[11px] font-mono text-primary/80 bg-black/40 px-3 py-0.5 rounded-full">@rawr cross</span>
-                                            <span className="text-[8px] text-white/30 uppercase tracking-wider">⚡ rawr cross ⚡</span>
-                                        </a>
+                                            <div className="flex-1 text-center md:text-left">
+                                                <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter">Onlyonestands</h2>
+                                                <div className="inline-block mt-1 px-3 py-0.5 bg-primary/20 rounded-full text-primary text-[10px] font-mono font-bold tracking-wider">Site Owner</div>
+                                                <p className="text-white/60 text-sm leading-relaxed mt-3 max-w-md">
+                                                    Hi, I'm <span className="text-white border-b border-primary/40 pb-0.5">Tie</span>. 
+                                                    I'm a small coder who does many projects and things in my free time. 
+                                                    Passionate about building clean tools and learning the stack.
+                                                </p>
+                                            </div>
+                                        </div>
                                         
-                                        {/* Roblox Card with engravingangels */}
-                                        <a href={robloxProfile} target="_blank" rel="noopener noreferrer" className="glass-card rounded-2xl p-4 flex flex-col items-center gap-2 transition-all duration-300 hover:bg-primary/10 border-white/10 hover:border-primary/50 group">
-                                            <div className="bg-gradient-to-br from-red-800/30 to-rose-900/30 p-3 rounded-2xl">
-                                                <BrandIcon type="roblox" size={32} />
-                                            </div>
-                                            <span className="font-mono text-sm font-bold tracking-wide">ROBLOX</span>
-                                            <span className="text-[11px] font-mono text-primary/80 bg-black/40 px-3 py-0.5 rounded-full">engravingangels</span>
-                                            <span className="text-[8px] text-white/30 uppercase tracking-wider">✦ builder ✦</span>
-                                        </a>
-                                    </div>
-                                    
-                                    {/* Enhanced Social Bar with Discord status + GitHub + Mail */}
-                                    <div className="flex flex-wrap justify-center gap-5 mt-2">
-                                        {[
-                                            { icon: 'github', url: 'https://github.com/imcomingforyou6959-gif', label: 'GitHub', color: '#fff' },
-                                            { icon: 'mail', url: 'mailto:rawr.xyl@gmail.com', label: 'Mail', color: '#ef4444' },
-                                            { icon: 'message-circle', url: '#', label: discordStatus, custom: true, extra: 'Discord' }
-                                        ].map((soc, idx) => (
-                                            <a 
-                                                key={idx} 
-                                                href={soc.url} 
-                                                target={soc.url !== '#' ? "_blank" : undefined}
-                                                className="glass p-4 rounded-2xl transition-all duration-300 hover:scale-110 hover:bg-primary/10 flex flex-col items-center gap-1 min-w-[80px] group"
-                                            >
-                                                <DynamicIcon name={soc.icon} size={26} className="text-white/70 group-hover:text-primary transition" strokeWidth={1.6} />
-                                                <span className="text-[9px] font-mono text-white/40 group-hover:text-white/80 uppercase tracking-wide">{soc.extra || soc.label}</span>
-                                                {soc.custom && <span className="text-[10px] font-bold text-primary/90 mt-0.5">{discordStatus}</span>}
+                                        {/* Xbox + Roblox Cards (old feature) */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                                            <a href={xboxUrl} target="_blank" rel="noopener noreferrer" className="bg-d_darker/80 p-4 rounded-xl flex items-center gap-4 transition-all hover:bg-primary/10 border border-white/5 hover:border-primary/30 group">
+                                                <div className="bg-gradient-to-br from-green-700/40 to-emerald-900/40 p-3 rounded-xl">
+                                                    <Icon name="gamepad-2" size={28} className="text-white/80 group-hover:text-primary transition" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-white text-sm">XBOX</p>
+                                                    <p className="font-mono text-xs text-primary">rawr cross</p>
+                                                    <p className="text-[9px] text-white/40 uppercase">gamertag</p>
+                                                </div>
                                             </a>
-                                        ))}
+                                            <a href={robloxUrl} target="_blank" rel="noopener noreferrer" className="bg-d_darker/80 p-4 rounded-xl flex items-center gap-4 transition-all hover:bg-primary/10 border border-white/5 hover:border-primary/30 group">
+                                                <div className="bg-gradient-to-br from-red-800/40 to-rose-900/40 p-3 rounded-xl">
+                                                    <Icon name="crown" size={28} className="text-white/80 group-hover:text-primary transition" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-white text-sm">ROBLOX</p>
+                                                    <p className="font-mono text-xs text-primary">engravingangels</p>
+                                                    <p className="text-[9px] text-white/40 uppercase">creator</p>
+                                                </div>
+                                            </a>
+                                        </div>
+                                        
+                                        {/* Social links + Discord status */}
+                                        <div className="flex flex-wrap justify-center gap-4 mt-8">
+                                            <a href="https://github.com/imcomingforyou6959-gif" target="_blank" className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20 transition hover:bg-primary/20">
+                                                <Icon name="github" size={22} className="text-white/70" />
+                                                <span className="text-[9px] text-white/40">GitHub</span>
+                                            </a>
+                                            <a href="mailto:rawr.xyl@gmail.com" className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20 transition hover:bg-primary/20">
+                                                <Icon name="mail" size={22} className="text-white/70" />
+                                                <span className="text-[9px] text-white/40">Email</span>
+                                            </a>
+                                            <div className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20">
+                                                <Icon name="message-circle" size={22} className="text-white/70" />
+                                                <span className="text-[9px] text-white/40">Discord</span>
+                                                <span className="text-[9px] font-mono text-primary font-bold">{discordStatus}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* gamertag line footer */}
+                                        <div className="mt-6 pt-4 border-t border-white/10 flex justify-center gap-3 text-[10px] font-mono text-white/30">
+                                            <span className="flex items-center gap-1"><Icon name="gamepad-2" size={12} /> rawr cross</span>
+                                            <span className="text-primary/50">✧</span>
+                                            <span className="flex items-center gap-1"><Icon name="crown" size={12} /> engravingangels</span>
+                                        </div>
                                     </div>
                                     
-                                    {/* Xbox & Roblox combined signature */}
-                                    <div className="w-full pt-2 flex justify-center items-center gap-3 text-[9px] font-mono text-white/30 border-t border-white/5 mt-2">
-                                        <span className="flex items-center gap-1"><DynamicIcon name="gamepad-2" size={12}/> rawr cross</span>
-                                        <span className="text-primary/40">✦</span>
-                                        <span className="flex items-center gap-1"><DynamicIcon name="crown" size={12}/> engravingangels</span>
+                                    {/* Status & version simple grid */}
+                                    <div className="grid grid-cols-2 gap-4 mt-5">
+                                        <div className="bg-d_dark/50 p-4 rounded-xl text-center border-l-2 border-primary/50">
+                                            <Icon name="activity" size={16} className="inline text-primary/70 mr-1" />
+                                            <p className="text-[9px] font-mono text-white/40 uppercase">Status</p>
+                                            <p className="text-primary font-bold text-xs">Active</p>
+                                        </div>
+                                        <div className="bg-d_dark/50 p-4 rounded-xl text-center">
+                                            <Icon name="code-2" size={16} className="inline text-primary/70 mr-1" />
+                                            <p className="text-[9px] font-mono text-white/40 uppercase">Version</p>
+                                            <p className="text-white font-mono text-xs font-bold">1.6.5</p>
+                                        </div>
                                     </div>
-                                </div>
-                                
-                                {/* Status & Version Grid */}
-                                <div className="w-full grid grid-cols-2 gap-4">
-                                    <div className="glass p-5 rounded-2xl text-center border-l-2 border-primary/40">
-                                        <DynamicIcon name="activity" size={16} className="text-primary/70 inline-block mr-1" />
-                                        <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em] mb-1">STATUS</p>
-                                        <p className="text-primary font-mono text-xs font-bold">● ENCRYPTED NEXUS</p>
-                                    </div>
-                                    <div className="glass p-5 rounded-2xl text-center border-r-2 border-primary/20">
-                                        <DynamicIcon name="code-2" size={16} className="text-primary/70 inline-block mr-1" />
-                                        <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em] mb-1">PROTOCOL</p>
-                                        <p className="text-white/80 font-mono font-bold text-xs">v1.6.5 "RAW"</p>
-                                    </div>
-                                </div>
-
-                                {/* special gamertag quote */}
-                                <div className="text-center mt-2 w-full">
-                                    <div className="inline-flex gap-2 bg-black/40 backdrop-blur-md rounded-full px-5 py-2 border border-white/5">
-                                        <DynamicIcon name="joystick" size={14} className="text-primary" />
-                                        <span className="text-[10px] font-mono tracking-wider text-white/60">XBOX: rawr cross | ROBLOX: engravingangels</span>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </main>
-
-                <footer className="mt-auto py-10 text-[9px] font-mono text-white/10 uppercase tracking-[0.5em] text-center w-full border-t border-white/5">
-                    rawr.xyz // encrypted pulse // established mmxxvi
-                </footer>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
             </div>
         );
     }
-
+    
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<Home />);
+    root.render(<App />);
 </script>
 </body>
 </html>
