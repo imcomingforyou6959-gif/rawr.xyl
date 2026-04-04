@@ -73,15 +73,12 @@
             const [rainSpeed, setRainSpeed] = React.useState(1);
             const [viewers, setViewers] = React.useState("...");
             const [discordOnline, setDiscordOnline] = React.useState("...");
-            const [spotify, setSpotify] = React.useState(null);
-            const [discordUser, setDiscordUser] = React.useState(null);
             const [logs, setLogs] = React.useState([
                 "System initialized.",
                 "Fetching repository data...",
                 "Waiting for input..."
             ]);
 
-            const myDiscordID = "1071330258172780594";
             const serverID = "1476151042759721002";
 
             React.useEffect(() => {
@@ -94,22 +91,7 @@
                 };
                 fetchViews();
 
-                // 2. Lanyard (Spotify + Discord Profile)
-                const fetchLanyard = () => {
-                    fetch(`https://api.lanyard.rest/v1/users/${myDiscordID}`)
-                        .then(res => res.json())
-                        .then(res => {
-                            if (res.success) {
-                                setDiscordUser(res.data.discord_user);
-                                setSpotify(res.data.listening_to_spotify ? res.data.spotify : null);
-                            }
-                        })
-                        .catch(() => console.error("Lanyard Error"));
-                };
-                fetchLanyard();
-                const lanyardInterval = setInterval(fetchLanyard, 5000);
-
-                // 3. Discord Server Stats
+                // 2. Discord Server Stats
                 const fetchDiscord = () => {
                     fetch(`https://discord.com/api/guilds/${serverID}/widget.json`)
                         .then(res => res.json())
@@ -118,14 +100,12 @@
                 };
                 fetchDiscord();
 
-                // 4. Activity Logs Simulation
+                // 3. Activity Logs Simulation
                 const logOptions = [
                     "Bypassing check...",
                     "Injection successful",
                     "V1.6.0 stable",
                     "Security layer 2 active",
-                    "Discord session validated",
-                    "Packet sent to main",
                     "Cache cleared"
                 ];
                 const logInterval = setInterval(() => {
@@ -135,10 +115,7 @@
                     });
                 }, 7000);
 
-                return () => {
-                    clearInterval(lanyardInterval);
-                    clearInterval(logInterval);
-                };
+                return () => clearInterval(logInterval);
             }, []);
 
             return (
@@ -162,7 +139,7 @@
                         <AnimatePresence mode="wait">
                             {page === 'main' ? (
                                 <motion.div 
-                                    key="exec"
+                                    key="main"
                                     initial={{ opacity: 0, y: 15 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -15 }}
@@ -221,36 +198,15 @@
                                     <div className="w-full glass rounded-[2.5rem] p-10 flex flex-col items-center gap-6">
                                         <div className="relative">
                                             <img 
-                                                src={discordUser ? `https://cdn.discordapp.com/avatars/${myDiscordID}/${discordUser.avatar}.png?size=256` : 'logo.png'} 
+                                                src="IMG_4981.png" 
                                                 className="w-32 h-32 rounded-full border-4 border-primary/20 shadow-[0_0_40px_rgba(239,68,68,0.3)]" 
                                             />
                                             <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-4 border-[#070707] rounded-full"></div>
                                         </div>
                                         <div className="text-center">
-                                            <h2 className="text-3xl font-mono font-bold tracking-tighter">@{discordUser?.username || 'Onlyonestands'}</h2>
-                                            <p className="text-primary text-[10px] font-mono tracking-[0.5em] uppercase mt-2">Lead Protocol Admin</p>
+                                            <h2 className="text-3xl font-mono font-bold tracking-tighter">@Onlyonestands</h2>
+                                            <p className="text-primary text-[10px] font-mono tracking-[0.5em] uppercase mt-2">Site Owner</p>
                                         </div>
-                                    </div>
-
-                                    {/* Enhanced Spotify Widget */}
-                                    <div className="w-full bg-[#1DB954]/5 border border-[#1DB954]/20 p-6 rounded-[2rem] backdrop-blur-xl transition-all duration-500">
-                                        {spotify ? (
-                                            <div className="flex items-center gap-6">
-                                                <img src={spotify.album_art_url} className="w-20 h-20 rounded-2xl shadow-lg animate-[spin_12s_linear_infinite]" />
-                                                <div className="flex-1 overflow-hidden">
-                                                    <div className="flex items-center gap-2 mb-1.5">
-                                                        <span className="w-2 h-2 bg-[#1DB954] rounded-full animate-ping"></span>
-                                                        <span className="text-[10px] font-mono text-[#1DB954] uppercase tracking-widest font-bold">Listening</span>
-                                                    </div>
-                                                    <h3 className="text-white font-bold text-lg truncate leading-none">{spotify.track}</h3>
-                                                    <p className="text-white/40 text-xs truncate mt-1 uppercase tracking-tighter">{spotify.artist}</p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="py-4 text-center">
-                                                <span className="text-white/10 font-mono text-[10px] uppercase tracking-[0.4em] italic">No active audio stream</span>
-                                            </div>
-                                        )}
                                     </div>
 
                                     {/* Admin Contact Cards */}
