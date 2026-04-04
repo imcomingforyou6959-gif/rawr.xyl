@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>rawr.xyz | OG</title>
     
+    <link rel="icon" type="image/png" href="logo2.PNG">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -17,8 +19,8 @@
             theme: {
                 extend: {
                     colors: {
-                        background: '#050505', // Real OG Black
-                        primary: '#ef4444',    // Signature Red
+                        background: '#050505',
+                        primary: '#ef4444',
                         foreground: '#ffffff',
                         muted: 'rgba(255, 255, 255, 0.4)'
                     },
@@ -33,17 +35,78 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
-        body { background-color: #050505; color: white; margin: 0; overflow: hidden; }
-        .rain-canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 1; opacity: 0.25; }
+        
+        body { 
+            background-color: #050505; 
+            color: white; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+
+        .rain-canvas { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            pointer-events: none; 
+            z-index: 1; 
+            opacity: 0.15; 
+        }
+
+        /* Smooth scanline effect for the OG look */
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(239, 68, 68, 0.1);
+            position: fixed;
+            z-index: 5;
+            top: 0;
+            animation: scan 8s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: -5%; }
+            100% { top: 105%; }
+        }
     </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-    const { motion, AnimatePresence } = window.Motion;
+    const { motion } = window.Motion;
 
-    // --- RAIN BACKGROUND ---
+    const ScriptBlock = () => {
+        const [log, setLog] = React.useState("> initializing...");
+        
+        React.useEffect(() => {
+            const sequence = [
+                "> mounting b4nex.core...",
+                "> check status: active",
+                "> bypass_tpm: enabled",
+                "> local_ip: [protected]",
+                "> connection: encrypted",
+                "> welcome back, user"
+            ];
+            let i = 0;
+            const interval = setInterval(() => {
+                setLog(sequence[i % sequence.length]);
+                i++;
+            }, 3000);
+            return () => clearInterval(interval);
+        }, []);
+
+        return (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="w-full max-w-xs bg-white/5 border border-white/5 backdrop-blur-md p-3 rounded-xl font-mono text-[10px] text-white/40 flex items-center gap-3"
+            >
+                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_8px_#ef4444]" />
+                <span className="tracking-tight">{log}</span>
+            </motion.div>
+        );
+    };
+
     const RainBackground = () => {
         const canvasRef = React.useRef(null);
         React.useEffect(() => {
@@ -54,11 +117,11 @@
             const init = () => {
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
-                drops = Array.from({ length: 80 }, () => ({
+                drops = Array.from({ length: 70 }, () => ({
                     x: Math.random() * canvas.width,
                     y: Math.random() * canvas.height,
-                    len: Math.random() * 20 + 10,
-                    vel: Math.random() * 10 + 5
+                    len: Math.random() * 15 + 5,
+                    vel: Math.random() * 8 + 4
                 }));
             };
 
@@ -66,7 +129,6 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.strokeStyle = '#ef4444';
                 ctx.lineWidth = 1;
-                ctx.lineCap = 'round';
                 drops.forEach(d => {
                     ctx.beginPath();
                     ctx.moveTo(d.x, d.y);
@@ -88,38 +150,6 @@
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    // --- SCRIPT BLOCK (Terminal) ---
-    const ScriptBlock = () => {
-        const [text, setText] = React.useState("");
-        const [fullText, setFullText] = React.useState("> initializing b4nex_engine...");
-        
-        React.useEffect(() => {
-            const logs = [
-                "> mounting modules...",
-                "> check status: active",
-                "> welcome back, user",
-                "> local_ip: [protected]",
-                "> scripts loaded: 14"
-            ];
-            let i = 0;
-            const interval = setInterval(() => {
-                setFullText(logs[i % logs.length]);
-                i++;
-            }, 3500);
-            return () => clearInterval(interval);
-        }, []);
-
-        return (
-            <div className="w-full max-w-xs bg-black/40 border border-white/5 backdrop-blur-sm p-3 rounded-lg font-mono text-[10px] text-white/50">
-                <div className="flex gap-2 items-center">
-                    <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
-                    <span>{fullText}</span>
-                </div>
-            </div>
-        );
-    };
-
-    // --- LINK BUTTON ---
     const LinkButton = ({ href, iconName, label }) => {
         React.useEffect(() => {
             if (window.lucide) window.lucide.createIcons();
@@ -129,52 +159,63 @@
             <a 
                 href={href} 
                 target="_blank" 
-                className="flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:border-primary/50 transition-all group"
+                className="flex items-center gap-3 px-6 py-3 bg-white/[0.03] border border-white/5 rounded-2xl hover:bg-white/[0.08] hover:border-primary/40 transition-all group"
             >
-                <i data-lucide={iconName} className="w-5 h-5 text-white/70 group-hover:text-primary transition-colors"></i>
-                <span className="font-bold text-sm tracking-wide">{label}</span>
+                <i data-lucide={iconName} className="w-5 h-5 text-white/50 group-hover:text-primary transition-colors"></i>
+                <span className="font-bold text-sm tracking-tight text-white/80">{label}</span>
             </a>
         );
     };
 
-    // --- MAIN HOME ---
     function Home() {
         return (
             <div className="relative min-h-screen flex flex-col items-center justify-center bg-background px-6">
                 <RainBackground />
+                <div className="scanline" />
                 
-                {/* Subtle Overlay */}
-                <div className="fixed inset-0 bg-gradient-to-b from-transparent via-background/20 to-background z-10 pointer-events-none" />
+                <div className="fixed inset-0 bg-gradient-to-b from-transparent via-background/10 to-background z-10 pointer-events-none" />
 
                 <motion.div 
-                    initial={{ opacity: 0, y: 30 }}
+                    initial={{ opacity: 0, y: 40 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className="relative z-20 flex flex-col items-center gap-12 w-full max-w-xl"
+                    transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                    className="relative z-20 flex flex-col items-center gap-10 w-full max-w-xl"
                 >
-                    {/* Header */}
+                    {/* Main Website Logo / Icon */}
+                    <motion.div 
+                        whileHover={{ scale: 1.05 }}
+                        className="relative p-1 bg-gradient-to-b from-primary/20 to-transparent rounded-[2.5rem]"
+                    >
+                        <img 
+                            src="logo2.PNG" 
+                            className="w-28 h-28 md:w-32 md:h-32 rounded-[2.2rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-white/5" 
+                            alt="rawr logo" 
+                        />
+                    </motion.div>
+
+                    {/* Header Text */}
                     <div className="text-center">
                         <h1 className="text-5xl md:text-6xl font-black font-mono tracking-tighter text-white uppercase italic">
                             rawr<span className="text-primary">.xyz</span>
                         </h1>
-                        <div className="mt-2 h-[2px] w-24 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto opacity-50" />
+                        <div className="mt-3 h-[1px] w-20 bg-gradient-to-r from-transparent via-primary/40 to-transparent mx-auto" />
                     </div>
 
-                    {/* Social Buttons */}
+                    {/* Links Grid */}
                     <div className="flex flex-wrap justify-center gap-4">
                         <LinkButton href="https://discord.com/invite/eMpUQzFrNG" iconName="message-circle" label="Discord" />
                         <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" iconName="github" label="GitHub" />
                         <LinkButton href="https://www.youtube.com/@rawr.xy3" iconName="youtube" label="YouTube" />
-                        <LinkButton href="#" iconName="globe" label="Portfolio" />
+                        <LinkButton href="#" iconName="folder-code" label="Portfolio" />
                     </div>
 
-                    {/* Script Logic */}
+                    {/* ScriptBlock component call */}
                     <ScriptBlock />
                 </motion.div>
 
                 {/* Footer */}
-                <footer className="absolute bottom-8 z-20 text-[10px] font-mono text-white/20 tracking-[0.3em] uppercase">
-                    Established 2026 / Local Protocol
+                <footer className="absolute bottom-8 z-20 text-[9px] font-mono text-white/10 tracking-[0.4em] uppercase">
+                    Protocol v2.1 // Protected Environment
                 </footer>
             </div>
         );
