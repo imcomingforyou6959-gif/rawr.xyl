@@ -1,95 +1,75 @@
-function RainBackground() {
+const RainBackground = ({ speed = 1 }) => {
     const canvasRef = React.useRef(null);
-    const mouseRef = React.useRef({ x: -1000, y: -1000 }); // Start mouse off-screen
 
     React.useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        let animationId;
+        let animationFrameId;
 
+        // Dynamic resizing to ensure the rain covers the full screen on all devices
         const resize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         };
 
-        // Track Mouse Position
-        const handleMouseMove = (e) => {
-            mouseRef.current = { x: e.clientX, y: e.clientY };
-        };
-
         window.addEventListener('resize', resize);
-        window.addEventListener('mousemove', handleMouseMove);
         resize();
 
+        // Create the drop objects
         const drops = [];
-        const dropCount = 180;
+        // If speed is 0, we don't create any drops to save CPU on low-end PCs
+        const dropCount = speed === 0 ? 0 : 150; 
 
         for (let i = 0; i < dropCount; i++) {
             drops.push({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
-                length: Math.random() * 18 + 8,
-                speed: Math.random() * 4 + 3,
-                opacity: Math.random() * 0.15 + 0.03,
-                width: Math.random() * 1.2 + 0.3,
-                offsetX: 0 // Used for the interactive "push"
+                length: Math.random() * 20 + 10,
+                // Base speed is randomized, then multiplied by your slider intensity
+                baseSpeed: Math.random() * 5 + 2 
             });
         }
 
-        const animate = () => {
+        const draw = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set the rain color - matches your Red/Black aesthetic
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.15)'; 
+            ctx.lineWidth = 1;
+            ctx.lineCap = 'round';
 
-            drops.forEach((drop) => {
-                // INTERACTIVE LOGIC: Calculate distance from mouse
-                const dx = mouseRef.current.x - drop.x;
-                const dy = mouseRef.current.y - drop.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const forceRange = 120; // How close the mouse needs to be
-
-                if (distance < forceRange) {
-                    // Push the rain away from the mouse horizontally
-                    const force = (forceRange - distance) / forceRange;
-                    drop.offsetX = -dx * force * 0.2; 
-                } else {
-                    // Smoothly return to normal slant
-                    drop.offsetX *= 0.95;
-                }
-
+            drops.forEach(drop => {
                 ctx.beginPath();
-                // We add the offsetX to the x-coordinates
-                ctx.moveTo(drop.x + drop.offsetX, drop.y);
-                ctx.lineTo(drop.x + 2 + drop.offsetX, drop.y + drop.length);
-                
-                ctx.strokeStyle = 'rgba(255, 100, 100, ${drop.opacity})';
-                ctx.lineWidth = drop.width;
-                ctx.lineCap = 'round';
+                ctx.moveTo(drop.x, drop.y);
+                ctx.lineTo(drop.x, drop.y + drop.length);
                 ctx.stroke();
 
-                drop.y += drop.speed;
+                // Move the drop based on the speed prop
+                drop.y += drop.baseSpeed * speed;
 
+                // Reset drop to top when it hits the bottom
                 if (drop.y > canvas.height) {
                     drop.y = -drop.length;
                     drop.x = Math.random() * canvas.width;
-                    drop.offsetX = 0; // Reset push on new drop
                 }
             });
 
-            animationId = requestAnimationFrame(animate);
+            animationFrameId = requestAnimationFrame(draw);
         };
 
-        animate();
+        draw();
 
         return () => {
-            cancelAnimationFrame(animationId);
+            cancelAnimationFrame(animationFrameId);
             window.removeEventListener('resize', resize);
-            window.removeEventListener('mousemove', handleMouseMove);
         };
-    }, []);
+    }, [speed]); // Re-calculates immediately whenever you move the slider
 
     return (
-        <canvas
-            ref={canvasRef}
-            className="fixed inset-0 pointer-events-none z-0"
+        <canvas 
+            ref={canvasRef} 
+            className="fixed top-0 left-0 w-full h-full pointer-events-none z-0"
+            style={{ display: speed === 0 ? 'none' : 'block' }}
         />
     );
-}
+};

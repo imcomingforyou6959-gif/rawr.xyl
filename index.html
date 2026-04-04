@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>rawr.xyz</title>
-    
+    <title>rawr.xyz | v1.5.0</title>
     <link rel="icon" type="image/png" href="logo.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,7 +18,6 @@
                 extend: {
                     colors: {
                         background: '#070707',
-                        foreground: '#ffffff',
                         primary: '#ef4444', 
                     }
                 }
@@ -35,158 +33,172 @@
             background-color: #070707;
             margin: 0;
             overflow-x: hidden;
-            overflow-y: auto;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
+            color: white;
         }
 
-        canvas {
-            position: fixed !important;
-            top: 0;
-            left: 0;
-            z-index: 0;
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Custom Slider Styling */
+        input[type='range'] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.05);
+            height: 4px;
+            border-radius: 5px;
+            accent-color: #ef4444;
         }
 
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        #root {
-            animation: fadeIn 1.2s ease-in;
-            position: relative;
-            z-index: 10;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        #root { position: relative; z-index: 10; }
     </style>
 </head>
-<body class="bg-background text-foreground">
+<body>
     <div id="root"></div>
 
-    <script type="text/babel" src="RainBackground.jsx?v=1.7"></script>
-    <script type="text/babel" src="ScriptBlock.jsx?v=1.7"></script>
+    <script type="text/babel" src="RainBackground.jsx?v=2.0"></script>
+    <script type="text/babel" src="ScriptBlock.jsx?v=2.0"></script>
 
     <script type="text/babel">
-        const { motion } = window.Motion;
-
-        const DiscordIcon = () => (
-            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" className="mr-3 text-primary">
-                <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z" />
-            </svg>
-        );
+        const { motion, AnimatePresence } = window.Motion;
 
         function Home() {
-            const [viewers, setViewers] = React.useState("...");
-            const [discordOnline, setDiscordOnline] = React.useState("...");
-            const serverID = "1476151042759721002";
+            const [page, setPage] = React.useState('executor'); // 'executor' or 'owner'
+            const [rainSpeed, setRainSpeed] = React.useState(1);
+            const [spotify, setSpotify] = React.useState(null);
+            const myDiscordID = "1071330258172780594";
 
+            // Fetch Spotify Status via Lanyard API
             React.useEffect(() => {
-                // 1. Live Viewer Simulation (Bulletproof for PC/Mobile)
-                // We generate a number that looks real and updates every few seconds
-                const updateViewers = () => {
-                    const base = 85; 
-                    const fluctuation = Math.floor(Math.random() * 15);
-                    setViewers(base + fluctuation);
-                };
-                updateViewers();
-                const vInterval = setInterval(updateViewers, 5000);
-
-                // 2. Fetch Discord Online Count (Widget must be enabled in Discord settings)
-                const fetchDiscord = () => {
-                    fetch(`https://discord.com/api/guilds/${serverID}/widget.json?t=${Date.now()}`)
+                const fetchStatus = () => {
+                    fetch(`https://api.lanyard.rest/v1/users/${myDiscordID}`)
                         .then(res => res.json())
-                        .then(data => {
-                            setDiscordOnline(data.presence_count || "Active");
+                        .then(res => {
+                            if (res.data.listening_to_spotify) {
+                                setSpotify(res.data.spotify);
+                            } else {
+                                setSpotify(null);
+                            }
                         })
-                        .catch(() => setDiscordOnline("Online"));
+                        .catch(() => setSpotify(null));
                 };
-                fetchDiscord();
-                const dInterval = setInterval(fetchDiscord, 30000); // Update every 30s
 
-                return () => {
-                    clearInterval(vInterval);
-                    clearInterval(dInterval);
-                };
+                fetchStatus();
+                const interval = setInterval(fetchStatus, 5000);
+                return () => clearInterval(interval);
             }, []);
 
             return (
-                <div className="relative min-h-screen w-full flex flex-col items-center">
-                    <RainBackground />
+                <div className="relative min-h-screen flex flex-col items-center">
+                    <RainBackground speed={rainSpeed} />
                     
-                    <div className="fixed inset-0 bg-gradient-to-b from-transparent via-background/40 to-background pointer-events-none z-0" />
-
-                    <main className="relative z-10 flex flex-col items-center w-full px-6 py-12 md:py-24">
-                        <motion.div 
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 1 }}
-                            className="flex flex-col items-center gap-10 md:gap-14 max-w-2xl w-full"
+                    {/* Fixed Navigation Menu */}
+                    <nav className="fixed top-8 z-50 bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-1.5 flex gap-1 shadow-2xl">
+                        <button 
+                            onClick={() => setPage('executor')}
+                            className={`px-8 py-2.5 rounded-xl text-[10px] font-mono tracking-[0.3em] transition-all duration-300 ${page === 'executor' ? 'bg-primary text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'text-white/30 hover:text-white'}`}
                         >
-                            {/* Logo Section */}
-                            <div className="flex flex-col items-center gap-6">
-                                <motion.img 
-                                    src="logo.png" 
-                                    alt="logo" 
-                                    className="w-32 h-32 md:w-56 md:h-56 object-contain drop-shadow-[0_0_25px_rgba(239,68,68,0.25)]"
-                                    animate={{ y: [0, -8, 0] }}
-                                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                                />
-                                <div className="flex flex-col items-center gap-2 text-center">
-                                    <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tighter text-white drop-shadow-lg">
-                                        rawr<span className="text-primary">.xyz</span>
-                                    </h1>
-                                    <div className="h-1 w-24 md:w-32 bg-gradient-to-r from-transparent via-primary/60 to-transparent rounded-full" />
-                                </div>
-                            </div>
+                            EXECUTOR
+                        </button>
+                        <button 
+                            onClick={() => setPage('owner')}
+                            className={`px-8 py-2.5 rounded-xl text-[10px] font-mono tracking-[0.3em] transition-all duration-300 ${page === 'owner' ? 'bg-primary text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'text-white/30 hover:text-white'}`}
+                        >
+                            OWNER
+                        </button>
+                    </nav>
 
-                            {/* Script Terminal */}
-                            <div className="w-full max-w-lg">
-                                <ScriptBlock />
-                            </div>
-
-                            {/* Live Stats Bar */}
-                            <div className="flex flex-wrap justify-center gap-3 w-full max-w-lg">
-                                <div className="bg-white/[0.02] border border-white/5 px-5 py-2.5 rounded-xl flex items-center gap-3 backdrop-blur-sm group hover:bg-white/[0.04] transition-all">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]"></div>
-                                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition-colors">
-                                        Live Viewers: <span className="text-white font-bold">{viewers}</span>
-                                    </span>
-                                </div>
-                                <div className="bg-white/[0.02] border border-white/5 px-5 py-2.5 rounded-xl flex items-center gap-3 backdrop-blur-sm group hover:bg-white/[0.04] transition-all">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_10px_#ef4444]"></div>
-                                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition-colors">
-                                        Discord Online: <span className="text-white font-bold">{discordOnline}</span>
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                                <a 
-                                    href="https://discord.gg/fvJAz6EqS" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_20px_rgba(239,68,68,0.1)] hover:-translate-y-0.5"
+                    <main className="relative z-10 flex flex-col items-center w-full px-6 pt-36 pb-20 max-w-4xl">
+                        <AnimatePresence mode="wait">
+                            {page === 'executor' ? (
+                                <motion.div 
+                                    key="exec"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="flex flex-col items-center gap-12 w-full"
                                 >
-                                    <DiscordIcon /> DISCORD
-                                </a>
-                                <a 
-                                    href="https://github.com/imcomingforyou6959-gif/rawr.xyz" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_20px_rgba(239,68,68,0.1)] hover:-translate-y-0.5"
-                                >
-                                    GITHUB
-                                </a>
-                            </div>
-                        </motion.div>
+                                    <div className="flex flex-col items-center gap-6">
+                                        <motion.img src="logo.png" className="w-32 h-32 md:w-48 md:h-48 object-contain drop-shadow-[0_0_30px_rgba(239,68,68,0.2)]" animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
+                                        <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tighter uppercase">rawr<span className="text-primary">.xyz</span></h1>
+                                    </div>
 
-                        <footer className="mt-24 md:absolute md:bottom-10 text-[10px] font-mono text-white/10 uppercase tracking-[0.4em] text-center">
-                            rawr.xyz • 2026 • stay sharp
-                        </footer>
+                                    <ScriptBlock />
+
+                                    {/* Rain Settings Slider */}
+                                    <div className="w-full max-w-lg bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-md">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest flex items-center gap-2">
+                                                <div className="w-1 h-3 bg-primary rounded-full"></div>
+                                                Engine Settings
+                                            </span>
+                                            <span className="text-[10px] font-mono text-primary font-bold">Rain: {rainSpeed === 0 ? "OFF" : rainSpeed + "x"}</span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="3" 
+                                            step="0.5" 
+                                            value={rainSpeed} 
+                                            onChange={(e) => setRainSpeed(parseFloat(e.target.value))} 
+                                            className="w-full cursor-pointer"
+                                        />
+                                    </div>
+                                </motion.div>
+                            ) : (
+                                <motion.div 
+                                    key="owner"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="flex flex-col items-center gap-8 w-full max-w-lg"
+                                >
+                                    <div className="text-center mb-4">
+                                        <h2 className="text-4xl font-mono font-bold uppercase tracking-widest text-primary mb-2">The Creator</h2>
+                                        <p className="text-white/30 text-[10px] font-mono tracking-[0.4em] uppercase">Security Clearance: Level 5</p>
+                                    </div>
+
+                                    {/* Live Spotify Widget */}
+                                    <div className="w-full bg-[#1DB954]/5 border border-[#1DB954]/20 p-6 rounded-3xl backdrop-blur-xl transition-all duration-500 hover:bg-[#1DB954]/10">
+                                        {spotify ? (
+                                            <div className="flex items-center gap-6">
+                                                <div className="relative">
+                                                    <img src={spotify.album_art_url} className="w-24 h-24 rounded-2xl shadow-2xl relative z-10" />
+                                                    <div className="absolute inset-0 bg-[#1DB954] blur-2xl opacity-20 animate-pulse"></div>
+                                                </div>
+                                                <div className="flex-1 overflow-hidden">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="w-2 h-2 bg-[#1DB954] rounded-full animate-ping"></span>
+                                                        <span className="text-[10px] font-mono text-[#1DB954] uppercase tracking-widest font-bold">Currently Listening</span>
+                                                    </div>
+                                                    <h3 className="text-white font-bold text-lg truncate leading-tight">{spotify.track}</h3>
+                                                    <p className="text-white/50 text-sm truncate uppercase tracking-tighter">by {spotify.artist}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="py-6 text-center">
+                                                <p className="text-white/20 font-mono text-[10px] uppercase tracking-[0.3em] italic">Spotify session currently inactive</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Admin Information Cards */}
+                                    <div className="w-full space-y-3">
+                                        <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all cursor-default">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Discord</span>
+                                            <span className="text-sm font-mono text-primary font-bold">Onlyonestands</span>
+                                        </div>
+                                        <a href="mailto:rawr.xyl@gmail.com" className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest group-hover:text-white transition-colors">Email</span>
+                                            <span className="text-sm font-mono text-primary group-hover:underline transition-all">rawr.xyl@gmail.com</span>
+                                        </a>
+                                        <a href="https://github.com/imcomingforyou6959-gif" target="_blank" className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all">
+                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest group-hover:text-white transition-colors">Github</span>
+                                            <span className="text-sm font-mono text-primary group-hover:underline transition-all truncate ml-4">imcomingforyou6959-gif</span>
+                                        </a>
+                                    </div>
+
+                                    <footer className="mt-12 text-[8px] font-mono text-white/10 uppercase tracking-[0.8em]">rawr.xyz protocol</footer>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </main>
                 </div>
             );
