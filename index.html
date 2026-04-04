@@ -66,11 +66,11 @@
 <body class="bg-background text-foreground">
     <div id="root"></div>
 
-    <script type="text/babel" src="RainBackground.jsx"></script>
-    <script type="text/babel" src="ScriptBlock.jsx"></script>
+    <script type="text/babel" src="RainBackground.jsx?v=1.6"></script>
+    <script type="text/babel" src="ScriptBlock.jsx?v=1.6"></script>
 
     <script type="text/babel">
-        const { motion, AnimatePresence } = window.Motion;
+        const { motion } = window.Motion;
 
         const DiscordIcon = () => (
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" className="mr-3 text-primary">
@@ -79,6 +79,26 @@
         );
 
         function Home() {
+            const [viewers, setViewers] = React.useState("...");
+            const [discordCount, setDiscordCount] = React.useState("...");
+            const serverID = "1476151042759721002";
+
+            React.useEffect(() => {
+                // Fetch Website Views (Hits)
+                fetch('https://api.countapi.xyz/hit/rawr.xyz/visits')
+                    .then(res => res.json())
+                    .then(data => setViewers(data.value))
+                    .catch(() => setViewers("Active"));
+
+                // Fetch Discord Online Count
+                fetch(`https://discord.com/api/guilds/${serverID}/widget.json`)
+                    .then(res => res.json())
+                    .then(data => {
+                        setDiscordCount(data.presence_count || "Active");
+                    })
+                    .catch(() => setDiscordCount("Online"));
+            }, []);
+
             return (
                 <div className="relative min-h-screen w-full flex flex-col items-center">
                     <RainBackground />
@@ -114,13 +134,29 @@
                                 <ScriptBlock />
                             </div>
 
+                            {/* Stats Display */}
+                            <div className="flex flex-wrap justify-center gap-3 w-full max-w-lg">
+                                <div className="bg-white/[0.02] border border-white/5 px-5 py-2.5 rounded-xl flex items-center gap-3 backdrop-blur-sm">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]"></div>
+                                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">
+                                        Views: <span className="text-white font-bold">{viewers}</span>
+                                    </span>
+                                </div>
+                                <div className="bg-white/[0.02] border border-white/5 px-5 py-2.5 rounded-xl flex items-center gap-3 backdrop-blur-sm">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#ef4444]"></div>
+                                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">
+                                        Online: <span className="text-white font-bold">{discordCount}</span>
+                                    </span>
+                                </div>
+                            </div>
+
                             {/* Links Section */}
                             <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
                                 <a 
                                     href="https://discord.gg/fvJAz6EqS" 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_20px_rgba(239,68,68,0.1)] hover:-translate-y-0.5"
                                 >
                                     <DiscordIcon /> DISCORD
                                 </a>
@@ -128,15 +164,15 @@
                                     href="https://github.com/imcomingforyou6959-gif/rawr.xyz" 
                                     target="_blank" 
                                     rel="noopener noreferrer"
-                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                                    className="flex items-center justify-center bg-white/[0.03] hover:bg-white/[0.08] px-10 py-4 rounded-xl transition-all border border-white/10 hover:border-primary/50 text-white font-mono text-xs tracking-widest hover:shadow-[0_0_20px_rgba(239,68,68,0.1)] hover:-translate-y-0.5"
                                 >
                                     GITHUB
                                 </a>
                             </div>
                         </motion.div>
 
-                        <footer className="mt-20 md:absolute md:bottom-10 text-[10px] font-mono text-white/20 uppercase tracking-[0.3em]">
-                            rawr.xyz © 2026 • stay lethal
+                        <footer className="mt-20 md:absolute md:bottom-10 text-[10px] font-mono text-white/10 uppercase tracking-[0.4em] text-center">
+                            rawr.xyz • global execution hub • 2026
                         </footer>
                     </main>
                 </div>
