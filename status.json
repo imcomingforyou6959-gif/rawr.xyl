@@ -1,5 +1,5 @@
 {
   "version": "V1.5.0",
-  "status": "ONLINE",
-  "statusColor": "green"
+  "status": "OFFLINE",
+  "statusColor": "red"
 }
