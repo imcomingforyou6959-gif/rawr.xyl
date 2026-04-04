@@ -36,24 +36,8 @@
         ::-webkit-scrollbar-track { background: #1e1f22; }
         ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
         .discord-shadow { box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
-        .glass-card-bg { background: rgba(43, 45, 49, 0.6); backdrop-filter: blur(6px); }
-        /* custom range */
-        input[type='range'] {
-            -webkit-appearance: none;
-            background: #1e1f22;
-            height: 4px;
-            border-radius: 4px;
-        }
-        input[type='range']::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #ef4444;
-            cursor: pointer;
-            box-shadow: 0 0 6px #ef4444;
-            border: none;
-        }
+        input[type='range'] { -webkit-appearance: none; background: #1e1f22; height: 4px; border-radius: 4px; }
+        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; cursor: pointer; box-shadow: 0 0 6px #ef4444; border: none; }
     </style>
 </head>
 <body>
@@ -62,9 +46,7 @@
 <script type="text/babel">
     const { motion, AnimatePresence } = window.Motion;
 
-    // ------------------------------
-    // 1. SEASONAL RAIN BACKGROUND (full seasonal effect)
-    // ------------------------------
+    // 1. SEASONAL ENGINE
     const SeasonalRainBackground = ({ speed = 1 }) => {
         const canvasRef = React.useRef(null);
         const mouse = React.useRef({ x: 0, y: 0 });
@@ -72,15 +54,14 @@
         
         const getSeason = () => {
             const month = new Date().getUTCMonth();
-            if ([11, 0, 1].includes(month)) return { name: 'winter', color: '180, 220, 255', count: 420, type: 'snow', glow: '140,200,255' };
-            if ([2, 3, 4].includes(month)) return { name: 'spring', color: '255, 170, 200', count: 380, type: 'petal', glow: '255,140,180' };
-            if ([5, 6, 7].includes(month)) return { name: 'summer', color: '239, 68, 68', count: 650, type: 'rain', glow: '255,100,100' };
-            return { name: 'autumn', color: '255, 140, 60', count: 450, type: 'leaf', glow: '255,120,40' };
+            if ([11, 0, 1].includes(month)) return { name: 'winter', color: '180, 220, 255', count: 420, type: 'snow' };
+            if ([2, 3, 4].includes(month)) return { name: 'spring', color: '255, 170, 200', count: 380, type: 'petal' };
+            if ([5, 6, 7].includes(month)) return { name: 'summer', color: '239, 68, 68', count: 650, type: 'rain' };
+            return { name: 'autumn', color: '255, 140, 60', count: 450, type: 'leaf' };
         };
 
         React.useEffect(() => {
             const canvas = canvasRef.current;
-            if (!canvas) return;
             const ctx = canvas.getContext('2d');
             const season = getSeason();
             let particles = [];
@@ -99,352 +80,186 @@
                         y: Math.random() * canvas.height,
                         length: season.type === 'rain' ? Math.random() * 24 + 12 : Math.random() * 8 + 4,
                         size: Math.random() * 2.5 + 1,
-                        speedY: (Math.random() * (season.type === 'snow' ? 2 : 8) + 2.5) * (season.type === 'leaf' ? 0.9 : 1),
-                        speedX: (Math.random() - 0.5) * (season.type === 'snow' ? 0.5 : 1.2),
+                        speedY: (Math.random() * (season.type === 'snow' ? 2 : 8) + 2.5),
+                        speedX: (Math.random() - 0.5),
                         opacity: Math.random() * 0.5 + 0.2,
-                        drift: (Math.random() - 0.5) * 1.2,
                         spin: Math.random() * Math.PI * 2,
                     });
                 }
             };
             
-            const handleMouse = (e) => {
-                mouse.current.x = (e.clientX / window.innerWidth) - 0.5;
-                mouse.current.y = (e.clientY / window.innerHeight) - 0.5;
-            };
-            
-            const drawParticle = (p, offsetX, tiltX) => {
-                const xPos = p.x + offsetX + p.drift * 0.5;
-                const yPos = p.y;
-                
-                if (season.type === 'rain') {
-                    ctx.beginPath();
-                    ctx.moveTo(xPos + tiltX * 0.7, yPos);
-                    ctx.lineTo(xPos + tiltX * 0.7 + 4, yPos + p.length);
-                    ctx.strokeStyle = `rgba(${season.color}, ${p.opacity + 0.1})`;
-                    ctx.lineWidth = p.size * 0.7;
-                    ctx.stroke();
-                } 
-                else if (season.type === 'snow') {
-                    ctx.beginPath();
-                    ctx.arc(xPos, yPos, p.size * 0.7, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.2})`;
-                    ctx.fill();
-                    ctx.beginPath();
-                    ctx.arc(xPos - 1, yPos - 1, p.size * 0.3, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(255,255,255,0.5)`;
-                    ctx.fill();
-                }
-                else if (season.type === 'petal') {
-                    ctx.save();
-                    ctx.translate(xPos, yPos);
-                    ctx.rotate(p.spin);
-                    ctx.beginPath();
-                    ctx.ellipse(0, 0, p.size * 1.2, p.size * 0.7, 0, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.15})`;
-                    ctx.fill();
-                    ctx.restore();
-                }
-                else if (season.type === 'leaf') {
-                    ctx.save();
-                    ctx.translate(xPos, yPos);
-                    ctx.rotate(p.spin);
-                    ctx.beginPath();
-                    ctx.moveTo(0, -p.size);
-                    ctx.lineTo(p.size * 0.7, 0);
-                    ctx.lineTo(0, p.size);
-                    ctx.lineTo(-p.size * 0.7, 0);
-                    ctx.closePath();
-                    ctx.fillStyle = `rgba(${season.color}, ${p.opacity + 0.2})`;
-                    ctx.fill();
-                    ctx.restore();
-                }
-            };
-            
             const animate = () => {
-                if (!ctx || !canvas) return;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                const mouseOffsetX = mouse.current.x * 55;
-                const tiltX = mouse.current.x * (season.type === 'rain' ? 6 : 2.5);
-                
                 for (let p of particles) {
                     p.y += p.speedY * speed;
                     p.x += (p.speedX + mouse.current.x * 2) * speed;
                     p.spin += 0.03;
+                    if (p.y > canvas.height) p.y = -30;
                     
-                    if (p.y > canvas.height) {
-                        p.y = -30;
-                        p.x = Math.random() * canvas.width;
+                    ctx.beginPath();
+                    if (season.type === 'rain') {
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x, p.y + p.length);
+                        ctx.strokeStyle = `rgba(${season.color}, ${p.opacity})`;
+                        ctx.stroke();
+                    } else {
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(${season.color}, ${p.opacity})`;
+                        ctx.fill();
                     }
-                    if (p.x > canvas.width) p.x = 0;
-                    if (p.x < 0) p.x = canvas.width;
-                    
-                    drawParticle(p, mouseOffsetX, tiltX);
                 }
                 animationId.current = requestAnimationFrame(animate);
             };
             
             window.addEventListener('resize', resize);
-            window.addEventListener('mousemove', handleMouse);
             resize();
             animate();
-            
             return () => {
                 window.removeEventListener('resize', resize);
-                window.removeEventListener('mousemove', handleMouse);
-                if (animationId.current) cancelAnimationFrame(animationId.current);
+                cancelAnimationFrame(animationId.current);
             };
         }, [speed]);
         
-        return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-0" style={{ filter: 'blur(0.6px)' }} />;
+        return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-0" />;
     };
-    
-    // Icon helper (lucide)
+
+    // 2. ICON HELPER
     const Icon = ({ name, size = 20, className = "" }) => {
-        const ref = React.useRef(null);
+        const iconRef = React.useRef(null);
         React.useEffect(() => {
-            if (ref.current && lucide) lucide.createIcons();
-        }, [name]);
-        return <i ref={ref} data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+            if (window.lucide) {
+                window.lucide.createIcons({
+                    attrs: { class: className },
+                    nameAttr: 'data-lucide'
+                });
+            }
+        }, [name, className]);
+        return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
     };
-    
-    // ScriptBlock (terminal animation)
+
+    // 3. TERMINAL BLOCK
     const ScriptBlock = () => {
         const [message, setMessage] = React.useState("> system_ready");
         React.useEffect(() => {
-            const texts = ["> session active", "> rawr.xyz online", "> seasonal engine v2", "> interactive canvas", "> rawr cross loaded"];
+            const texts = ["> session active", "> rawr.xyz online", "> loading assets", "> engine v1.6.5"];
             let idx = 0;
             const interval = setInterval(() => {
                 setMessage(texts[idx % texts.length]);
                 idx++;
-            }, 2200);
+            }, 3000);
             return () => clearInterval(interval);
         }, []);
         return (
-            <div className="bg-d_darker/60 rounded-xl p-4 border border-white/10 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-primary font-mono text-sm">
-                    <Icon name="terminal" size={16} />
-                    <span className="tracking-wider font-bold">rawr@shell:~$</span>
+            <div className="bg-d_darker/60 rounded-xl p-4 border border-white/10 backdrop-blur-sm font-mono text-xs">
+                <div className="flex items-center gap-2 text-primary">
+                    <span className="font-bold">rawr@shell:~$</span>
                     <span className="text-white/80">{message}</span>
                 </div>
-                <div className="h-[1px] w-12 bg-primary/40 mt-2 rounded-full"></div>
             </div>
         );
     };
-    
-    // Main App
+
+    // 4. MAIN APP
     function App() {
         const [channel, setChannel] = React.useState('welcome');
-        const [speed, setSpeed] = React.useState(1.2);
-        const [discordStatus, setDiscordStatus] = React.useState("⟳ checking");
-        
-        React.useEffect(() => {
-            fetch("https://discord.com/api/guilds/1476151042759721002/widget.json")
-                .then(res => res.ok ? res.json() : Promise.reject())
-                .then(data => setDiscordStatus(`${data.presence_count || 0} online`))
-                .catch(() => setDiscordStatus("active"));
-        }, []);
-        
-        // Xbox & Roblox links
-        const xboxUrl = "https://www.xbox.com/en-us/play/user/rawr%20cross";
-        const robloxUrl = "https://www.roblox.com/users/engravingangels/profile";
-        
+        const [speed, setSpeed] = React.useState(1.0);
+
         return (
-            <div className="flex h-screen w-screen overflow-hidden relative">
-                {/* Seasonal animated background */}
+            <div className="flex h-screen w-screen overflow-hidden relative bg-d_darker">
                 <SeasonalRainBackground speed={speed} />
                 
-                {/* 1. SERVER RAIL */}
+                {/* SERVER RAIL */}
                 <div className="w-[72px] bg-d_darker flex flex-col items-center py-3 gap-2 z-50">
-                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white mb-2 cursor-pointer transition-all hover:rounded-xl shadow-lg">
+                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white cursor-pointer hover:rounded-xl transition-all">
                         <Icon name="terminal" size={24} />
                     </div>
-                    <div className="w-8 h-[2px] bg-d_dark rounded-full mb-2"></div>
-                    <div className="w-12 h-12 bg-d_dark rounded-full flex items-center justify-center hover:bg-primary transition-all hover:rounded-xl cursor-pointer">
-                        <Icon name="code" size={20} />
-                    </div>
                 </div>
-                
-                {/* 2. CHANNEL SIDEBAR */}
+
+                {/* SIDEBAR */}
                 <div className="w-60 bg-d_dark flex flex-col z-40">
-                    <div className="h-12 border-b border-d_darker flex items-center px-4 font-bold text-white shadow-sm tracking-wide">
+                    <div className="h-12 border-b border-d_darker flex items-center px-4 font-bold text-white shadow-sm">
                         RAWR.XYZ
                     </div>
-                    <div className="flex-1 p-2 space-y-1 mt-2">
-                        <p className="text-[11px] font-bold text-white/40 uppercase px-2 mb-2 tracking-wider">Information</p>
-                        <div 
-                            onClick={() => setChannel('welcome')}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer group ${channel === 'welcome' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white/70'}`}
-                        >
-                            <Icon name="hash" size={18} className="opacity-50" />
-                            <span className="font-medium">welcome</span>
+                    <div className="flex-1 p-2 space-y-1">
+                        <p className="text-[10px] font-bold text-white/30 uppercase px-2 mb-2 mt-4 tracking-widest">General</p>
+                        <div onClick={() => setChannel('welcome')} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition ${channel === 'welcome' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white'}`}>
+                            <Icon name="hash" size={18} /> welcome
                         </div>
-                        <div 
-                            onClick={() => setChannel('about')}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer group ${channel === 'about' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white/70'}`}
-                        >
-                            <Icon name="user" size={18} className="opacity-50" />
-                            <span className="font-medium">about-me</span>
-                        </div>
-                        
-                        <p className="text-[11px] font-bold text-white/40 uppercase px-2 mb-2 mt-6 tracking-wider">Gaming</p>
-                        <div className="flex items-center gap-2 px-2 py-1.5 text-white/40 hover:text-white/70 cursor-pointer">
-                            <Icon name="gamepad-2" size={18} className="opacity-50" />
-                            <span className="font-medium">rawr cross</span>
-                        </div>
-                        <div className="flex items-center gap-2 px-2 py-1.5 text-white/40 hover:text-white/70 cursor-pointer">
-                            <Icon name="crown" size={18} className="opacity-50" />
-                            <span className="font-medium">engravingangels</span>
+                        <div onClick={() => setChannel('about')} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition ${channel === 'about' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white'}`}>
+                            <Icon name="user" size={18} /> about-me
                         </div>
                     </div>
-                    
-                    {/* USER PANEL (bottom left) */}
+
+                    {/* USER PANEL */}
                     <div className="bg-[#232428] p-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <div className="relative">
-                                <img src="logo2.PNG" className="w-8 h-8 rounded-full object-cover border border-primary/30" onError={(e) => e.target.src='logo2.png'} />
-                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#232428] rounded-full"></div>
-                            </div>
+                            <img src="logo2.PNG" className="w-8 h-8 rounded-full border border-primary/20" />
                             <div className="leading-tight">
                                 <p className="text-xs font-bold text-white">Onlyonestands</p>
-                                <p className="text-[9px] text-white/40 font-mono">#0001</p>
+                                <p className="text-[9px] text-white/40">#0001</p>
                             </div>
                         </div>
-                        <div className="flex gap-1 text-white/60">
-                            <Icon name="mic" size={14} className="hover:text-white cursor-pointer" />
-                            <Icon name="headphones" size={14} className="hover:text-white cursor-pointer" />
-                            <Icon name="settings" size={14} className="hover:text-white cursor-pointer" />
-                        </div>
+                        <Icon name="settings" size={14} className="text-white/40 hover:text-white cursor-pointer" />
                     </div>
                 </div>
-                
-                {/* 3. MAIN CHAT AREA */}
-                <div className="flex-1 flex flex-col bg-d_gray/30 backdrop-blur-sm relative z-10">
-                    <div className="h-12 border-b border-d_darker flex items-center px-4 justify-between bg-d_gray/60 backdrop-blur-md z-30">
-                        <div className="flex items-center gap-2">
-                            <Icon name="hash" size={20} className="text-white/40" />
-                            <span className="font-bold text-white">{channel === 'welcome' ? 'welcome' : 'about-me'}</span>
-                        </div>
-                        <div className="flex gap-4 text-white/60">
-                            <Icon name="bell" size={20} />
-                            <Icon name="pin" size={20} />
-                            <div className="bg-d_darker px-2 py-0.5 rounded text-xs font-mono">v1.6.5</div>
+
+                {/* CHAT AREA */}
+                <div className="flex-1 flex flex-col relative z-10 bg-d_gray/20">
+                    <div className="h-12 border-b border-d_darker flex items-center px-4 justify-between bg-d_gray/40 backdrop-blur-md">
+                        <div className="flex items-center gap-2 font-bold text-white">
+                            <Icon name="hash" size={20} className="text-white/40" /> {channel}
                         </div>
                     </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 z-20">
+
+                    <div className="flex-1 overflow-y-auto p-8">
                         <AnimatePresence mode="wait">
                             {channel === 'welcome' ? (
-                                <motion.div key="welcome" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="max-w-2xl mx-auto w-full">
-                                    <div className="w-16 h-16 bg-d_dark rounded-2xl flex items-center justify-center mb-5 shadow-lg">
-                                        <Icon name="hash" size={36} className="text-primary" />
+                                <motion.div key="w" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="max-w-2xl mx-auto">
+                                    <div className="w-16 h-16 bg-d_dark rounded-2xl flex items-center justify-center mb-4 shadow-xl">
+                                        <Icon name="hash" size={32} className="text-primary" />
                                     </div>
-                                    <h1 className="text-3xl font-black text-white mb-2 uppercase tracking-tight">Welcome to rawr.xyz</h1>
-                                    <p className="text-white/50 mb-6 border-b border-white/10 pb-5 italic">This is the start of your rawr.xyz hub.</p>
-                                    
-                                    {/* ScriptBlock component */}
+                                    <h1 className="text-4xl font-black text-white uppercase">Welcome to the Hub</h1>
+                                    <p className="text-white/40 mb-8 pb-4 border-b border-white/5">The rawr.xyz protocol is fully operational.</p>
                                     <ScriptBlock />
                                     
-                                    {/* Engine control slider */}
-                                    <div className="mt-6 bg-d_dark/60 rounded-xl p-5 border border-white/10 discord-shadow">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Icon name="cpu" size={18} className="text-primary" />
-                                            <span className="text-[11px] font-mono font-bold text-white/60 tracking-wider">BACKGROUND INTENSITY</span>
+                                    <div className="mt-8 bg-d_dark/80 p-6 rounded-xl border border-white/10">
+                                        <div className="flex justify-between text-[10px] font-mono text-white/40 mb-2 uppercase">
+                                            <span>Engine Speed</span>
+                                            <span className="text-primary">{speed.toFixed(1)}x</span>
                                         </div>
-                                        <input 
-                                            type="range" min="0.3" max="2.5" step="0.05" 
-                                            value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                                            className="w-full cursor-pointer"
-                                        />
-                                        <div className="flex justify-between text-[10px] text-white/30 mt-2">
-                                            <span>calm</span>
-                                            <span className="text-primary font-mono">{speed.toFixed(1)}x</span>
-                                            <span>storm</span>
-                                        </div>
+                                        <input type="range" min="0.2" max="3" step="0.1" value={speed} onChange={(e)=>setSpeed(parseFloat(e.target.value))} className="w-full" />
                                     </div>
-                                    
-                                    <div className="text-[10px] text-white/20 font-mono text-center mt-8 tracking-widest">✦ seasonal particle system active ✦</div>
                                 </motion.div>
                             ) : (
-                                <motion.div key="about" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="max-w-3xl mx-auto w-full">
-                                    {/* Profile card - full old features */}
-                                    <div className="bg-d_dark/70 rounded-2xl p-6 border border-white/10 backdrop-blur-sm discord-shadow">
-                                        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-                                            <div className="relative">
-                                                <img src="logo2.PNG" className="w-28 h-28 rounded-2xl border-2 border-primary/40 shadow-xl object-cover" onError={(e) => e.target.src='logo2.png'} />
-                                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-d_dark rounded-full"></div>
-                                            </div>
-                                            <div className="flex-1 text-center md:text-left">
-                                                <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter">Onlyonestands</h2>
-                                                <div className="inline-block mt-1 px-3 py-0.5 bg-primary/20 rounded-full text-primary text-[10px] font-mono font-bold tracking-wider">Site Owner</div>
-                                                <p className="text-white/60 text-sm leading-relaxed mt-3 max-w-md">
-                                                    Hi, I'm <span className="text-white border-b border-primary/40 pb-0.5">Tie</span>. 
-                                                    I'm a small coder who does many projects and things in my free time. 
-                                                    Passionate about building clean tools and learning the stack.
+                                <motion.div key="a" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="max-w-3xl mx-auto">
+                                    <div className="bg-d_dark/80 p-8 rounded-2xl border border-white/10 discord-shadow">
+                                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                                            <img src="logo2.PNG" className="w-24 h-24 rounded-2xl border-2 border-primary/30" />
+                                            <div className="text-center md:text-left">
+                                                <h2 className="text-4xl font-black text-white">Onlyonestands</h2>
+                                                <p className="text-primary font-mono text-xs font-bold uppercase tracking-widest mt-1">Lead Developer</p>
+                                                <p className="mt-4 text-white/60 text-sm leading-relaxed max-w-md">
+                                                    Small coder working on clean tools. Founder of rawr.xyz.
                                                 </p>
                                             </div>
                                         </div>
                                         
-                                        {/* Xbox + Roblox Cards (old feature) */}
+                                        {/* GAME CARDS */}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-                                            <a href={xboxUrl} target="_blank" rel="noopener noreferrer" className="bg-d_darker/80 p-4 rounded-xl flex items-center gap-4 transition-all hover:bg-primary/10 border border-white/5 hover:border-primary/30 group">
-                                                <div className="bg-gradient-to-br from-green-700/40 to-emerald-900/40 p-3 rounded-xl">
-                                                    <Icon name="gamepad-2" size={28} className="text-white/80 group-hover:text-primary transition" />
-                                                </div>
+                                            <a href="https://www.xbox.com/en-us/play/user/rawr%20cross" target="_blank" className="bg-d_darker p-4 rounded-xl flex items-center gap-4 hover:bg-primary/10 transition border border-white/5">
+                                                <Icon name="gamepad-2" size={24} className="text-primary" />
                                                 <div>
-                                                    <p className="font-bold text-white text-sm">XBOX</p>
-                                                    <p className="font-mono text-xs text-primary">rawr cross</p>
-                                                    <p className="text-[9px] text-white/40 uppercase">gamertag</p>
+                                                    <p className="font-bold text-white text-xs">XBOX</p>
+                                                    <p className="text-[10px] font-mono text-white/40 uppercase">rawr cross</p>
                                                 </div>
                                             </a>
-                                            <a href={robloxUrl} target="_blank" rel="noopener noreferrer" className="bg-d_darker/80 p-4 rounded-xl flex items-center gap-4 transition-all hover:bg-primary/10 border border-white/5 hover:border-primary/30 group">
-                                                <div className="bg-gradient-to-br from-red-800/40 to-rose-900/40 p-3 rounded-xl">
-                                                    <Icon name="crown" size={28} className="text-white/80 group-hover:text-primary transition" />
-                                                </div>
+                                            <a href="https://www.roblox.com/users/engravingangels/profile" target="_blank" className="bg-d_darker p-4 rounded-xl flex items-center gap-4 hover:bg-primary/10 transition border border-white/5">
+                                                <Icon name="crown" size={24} className="text-primary" />
                                                 <div>
-                                                    <p className="font-bold text-white text-sm">ROBLOX</p>
-                                                    <p className="font-mono text-xs text-primary">engravingangels</p>
-                                                    <p className="text-[9px] text-white/40 uppercase">creator</p>
+                                                    <p className="font-bold text-white text-xs">ROBLOX</p>
+                                                    <p className="text-[10px] font-mono text-white/40 uppercase">engravingangels</p>
                                                 </div>
                                             </a>
-                                        </div>
-                                        
-                                        {/* Social links + Discord status */}
-                                        <div className="flex flex-wrap justify-center gap-4 mt-8">
-                                            <a href="https://github.com/imcomingforyou6959-gif" target="_blank" className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20 transition hover:bg-primary/20">
-                                                <Icon name="github" size={22} className="text-white/70" />
-                                                <span className="text-[9px] text-white/40">GitHub</span>
-                                            </a>
-                                            <a href="mailto:rawr.xyl@gmail.com" className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20 transition hover:bg-primary/20">
-                                                <Icon name="mail" size={22} className="text-white/70" />
-                                                <span className="text-[9px] text-white/40">Email</span>
-                                            </a>
-                                            <div className="bg-d_darker p-3 rounded-xl flex flex-col items-center gap-1 w-20">
-                                                <Icon name="message-circle" size={22} className="text-white/70" />
-                                                <span className="text-[9px] text-white/40">Discord</span>
-                                                <span className="text-[9px] font-mono text-primary font-bold">{discordStatus}</span>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* gamertag line footer */}
-                                        <div className="mt-6 pt-4 border-t border-white/10 flex justify-center gap-3 text-[10px] font-mono text-white/30">
-                                            <span className="flex items-center gap-1"><Icon name="gamepad-2" size={12} /> rawr cross</span>
-                                            <span className="text-primary/50">✧</span>
-                                            <span className="flex items-center gap-1"><Icon name="crown" size={12} /> engravingangels</span>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Status & version simple grid */}
-                                    <div className="grid grid-cols-2 gap-4 mt-5">
-                                        <div className="bg-d_dark/50 p-4 rounded-xl text-center border-l-2 border-primary/50">
-                                            <Icon name="activity" size={16} className="inline text-primary/70 mr-1" />
-                                            <p className="text-[9px] font-mono text-white/40 uppercase">Status</p>
-                                            <p className="text-primary font-bold text-xs">Active</p>
-                                        </div>
-                                        <div className="bg-d_dark/50 p-4 rounded-xl text-center">
-                                            <Icon name="code-2" size={16} className="inline text-primary/70 mr-1" />
-                                            <p className="text-[9px] font-mono text-white/40 uppercase">Version</p>
-                                            <p className="text-white font-mono text-xs font-bold">1.6.5</p>
                                         </div>
                                     </div>
                                 </motion.div>
@@ -455,7 +270,7 @@
             </div>
         );
     }
-    
+
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
 </script>
