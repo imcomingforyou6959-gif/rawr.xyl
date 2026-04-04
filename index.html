@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>rawr.xyz | v1.5.0</title>
+    <title>rawr.xyz | v1.6.0 Protocol</title>
     <link rel="icon" type="image/png" href="logo.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,10 +16,7 @@
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        background: '#070707',
-                        primary: '#ef4444', 
-                    }
+                    colors: { background: '#070707', primary: '#ef4444' }
                 }
             }
         }
@@ -28,17 +25,23 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
         
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #070707;
-            margin: 0;
-            overflow-x: hidden;
-            color: white;
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #070707; 
+            margin: 0; 
+            overflow-x: hidden; 
+            color: white; 
+            user-select: none;
         }
 
         .font-mono { font-family: 'JetBrains Mono', monospace; }
 
-        /* Custom Slider Styling */
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.3); border-radius: 10px; }
+
+        /* Rain Slider Styling */
         input[type='range'] {
             -webkit-appearance: none;
             background: rgba(255, 255, 255, 0.05);
@@ -48,158 +51,232 @@
         }
 
         #root { position: relative; z-index: 10; }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" src="RainBackground.jsx?v=2.0"></script>
-    <script type="text/babel" src="ScriptBlock.jsx?v=2.0"></script>
+    <script type="text/babel" src="RainBackground.jsx?v=2.2"></script>
+    <script type="text/babel" src="ScriptBlock.jsx?v=2.2"></script>
 
     <script type="text/babel">
         const { motion, AnimatePresence } = window.Motion;
 
         function Home() {
-            const [page, setPage] = React.useState('executor'); // 'executor' or 'owner'
+            const [page, setPage] = React.useState('main'); 
             const [rainSpeed, setRainSpeed] = React.useState(1);
+            const [viewers, setViewers] = React.useState("...");
+            const [discordOnline, setDiscordOnline] = React.useState("...");
             const [spotify, setSpotify] = React.useState(null);
-            const myDiscordID = "1071330258172780594";
+            const [discordUser, setDiscordUser] = React.useState(null);
+            const [logs, setLogs] = React.useState([
+                "System initialized.",
+                "Fetching repository data...",
+                "Waiting for input..."
+            ]);
 
-            // Fetch Spotify Status via Lanyard API
+            const myDiscordID = "1071330258172780594";
+            const serverID = "1476151042759721002";
+
             React.useEffect(() => {
-                const fetchStatus = () => {
+                // 1. Live Site Views
+                const fetchViews = () => {
+                    fetch(`https://api.countapi.xyz/hit/rawr.xyz/visits?t=${Date.now()}`)
+                        .then(res => res.json())
+                        .then(data => setViewers(data.value))
+                        .catch(() => setViewers("Active"));
+                };
+                fetchViews();
+
+                // 2. Lanyard (Spotify + Discord Profile)
+                const fetchLanyard = () => {
                     fetch(`https://api.lanyard.rest/v1/users/${myDiscordID}`)
                         .then(res => res.json())
                         .then(res => {
-                            if (res.data.listening_to_spotify) {
-                                setSpotify(res.data.spotify);
-                            } else {
-                                setSpotify(null);
+                            if (res.success) {
+                                setDiscordUser(res.data.discord_user);
+                                setSpotify(res.data.listening_to_spotify ? res.data.spotify : null);
                             }
                         })
-                        .catch(() => setSpotify(null));
+                        .catch(() => console.error("Lanyard Error"));
                 };
+                fetchLanyard();
+                const lanyardInterval = setInterval(fetchLanyard, 5000);
 
-                fetchStatus();
-                const interval = setInterval(fetchStatus, 5000);
-                return () => clearInterval(interval);
+                // 3. Discord Server Stats
+                const fetchDiscord = () => {
+                    fetch(`https://discord.com/api/guilds/${serverID}/widget.json`)
+                        .then(res => res.json())
+                        .then(data => setDiscordOnline(data.presence_count || "Online"))
+                        .catch(() => setDiscordOnline("Active"));
+                };
+                fetchDiscord();
+
+                // 4. Activity Logs Simulation
+                const logOptions = [
+                    "Bypassing check...",
+                    "Injection successful",
+                    "V1.6.0 stable",
+                    "Security layer 2 active",
+                    "Discord session validated",
+                    "Packet sent to main",
+                    "Cache cleared"
+                ];
+                const logInterval = setInterval(() => {
+                    setLogs(prev => {
+                        const newLog = `[${new Date().toLocaleTimeString()}] ${logOptions[Math.floor(Math.random() * logOptions.length)]}`;
+                        return [newLog, ...prev.slice(0, 3)];
+                    });
+                }, 7000);
+
+                return () => {
+                    clearInterval(lanyardInterval);
+                    clearInterval(logInterval);
+                };
             }, []);
 
             return (
                 <div className="relative min-h-screen flex flex-col items-center">
                     <RainBackground speed={rainSpeed} />
                     
-                    {/* Fixed Navigation Menu */}
-                    <nav className="fixed top-8 z-50 bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-1.5 flex gap-1 shadow-2xl">
-                        <button 
-                            onClick={() => setPage('executor')}
-                            className={`px-8 py-2.5 rounded-xl text-[10px] font-mono tracking-[0.3em] transition-all duration-300 ${page === 'executor' ? 'bg-primary text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'text-white/30 hover:text-white'}`}
-                        >
-                            EXECUTOR
-                        </button>
-                        <button 
-                            onClick={() => setPage('owner')}
-                            className={`px-8 py-2.5 rounded-xl text-[10px] font-mono tracking-[0.3em] transition-all duration-300 ${page === 'owner' ? 'bg-primary text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'text-white/30 hover:text-white'}`}
-                        >
-                            OWNER
-                        </button>
+                    {/* Navigation Bar */}
+                    <nav className="fixed top-8 z-50 glass rounded-2xl p-1.5 flex gap-1 shadow-2xl">
+                        {['main', 'about me'].map(targetPage => (
+                            <button 
+                                key={targetPage}
+                                onClick={() => setPage(targetPage)}
+                                className={`px-8 py-2.5 rounded-xl text-[10px] font-mono tracking-[0.3em] transition-all uppercase ${page === targetPage ? 'bg-primary text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'text-white/30 hover:text-white'}`}
+                            >
+                                {targetPage}
+                            </button>
+                        ))}
                     </nav>
 
                     <main className="relative z-10 flex flex-col items-center w-full px-6 pt-36 pb-20 max-w-4xl">
                         <AnimatePresence mode="wait">
-                            {page === 'executor' ? (
+                            {page === 'main' ? (
                                 <motion.div 
                                     key="exec"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    className="flex flex-col items-center gap-12 w-full"
+                                    initial={{ opacity: 0, y: 15 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -15 }}
+                                    className="flex flex-col items-center gap-10 w-full"
                                 >
                                     <div className="flex flex-col items-center gap-6">
-                                        <motion.img src="logo.png" className="w-32 h-32 md:w-48 md:h-48 object-contain drop-shadow-[0_0_30px_rgba(239,68,68,0.2)]" animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
+                                        <motion.img src="logo.png" className="w-32 h-32 md:w-48 object-contain drop-shadow-[0_0_30px_rgba(239,68,68,0.2)]" animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
                                         <h1 className="text-5xl md:text-7xl font-bold font-mono tracking-tighter uppercase">rawr<span className="text-primary">.xyz</span></h1>
                                     </div>
 
                                     <ScriptBlock />
 
-                                    {/* Rain Settings Slider */}
-                                    <div className="w-full max-w-lg bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-md">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest flex items-center gap-2">
-                                                <div className="w-1 h-3 bg-primary rounded-full"></div>
-                                                Engine Settings
-                                            </span>
-                                            <span className="text-[10px] font-mono text-primary font-bold">Rain: {rainSpeed === 0 ? "OFF" : rainSpeed + "x"}</span>
+                                    {/* System Logs Window */}
+                                    <div className="w-full max-w-lg glass rounded-2xl p-5">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="w-1 h-3 bg-primary rounded-full animate-pulse"></div>
+                                            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40">Recent Activity</span>
                                         </div>
-                                        <input 
-                                            type="range" 
-                                            min="0" 
-                                            max="3" 
-                                            step="0.5" 
-                                            value={rainSpeed} 
-                                            onChange={(e) => setRainSpeed(parseFloat(e.target.value))} 
-                                            className="w-full cursor-pointer"
-                                        />
+                                        <div className="space-y-1.5 h-24 overflow-y-auto custom-scrollbar">
+                                            {logs.map((log, i) => (
+                                                <div key={i} className="text-[10px] font-mono text-white/20 border-l border-white/10 pl-3">
+                                                    {log}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Live Stats Row */}
+                                    <div className="flex flex-wrap justify-center gap-4 w-full">
+                                        <div className="glass px-6 py-3 rounded-2xl flex items-center gap-3">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]"></div>
+                                            <span className="text-[10px] font-mono text-white/30 uppercase tracking-[0.2em]">Visits: <span className="text-white font-bold">{viewers}</span></span>
+                                        </div>
+                                        <div className="glass px-6 py-3 rounded-2xl flex items-center gap-3">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_10px_#ef4444]"></div>
+                                            <span className="text-[10px] font-mono text-white/30 uppercase tracking-[0.2em]">Online: <span className="text-white font-bold">{discordOnline}</span></span>
+                                        </div>
+                                    </div>
+
+                                    {/* Engine Speed Slider */}
+                                    <div className="w-full max-w-lg glass p-6 rounded-2xl flex items-center gap-6">
+                                        <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest min-w-[80px]">Rain</span>
+                                        <input type="range" min="0" max="3" step="0.5" value={rainSpeed} onChange={(e) => setRainSpeed(parseFloat(e.target.value))} className="flex-1 cursor-pointer" />
+                                        <span className="text-[10px] font-mono text-primary font-bold">{rainSpeed}x</span>
                                     </div>
                                 </motion.div>
                             ) : (
                                 <motion.div 
-                                    key="owner"
-                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    key="about me"
+                                    initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    exit={{ opacity: 0, scale: 0.98 }}
                                     className="flex flex-col items-center gap-8 w-full max-w-lg"
                                 >
-                                    <div className="text-center mb-4">
-                                        <h2 className="text-4xl font-mono font-bold uppercase tracking-widest text-primary mb-2">The Creator</h2>
-                                        <p className="text-white/30 text-[10px] font-mono tracking-[0.4em] uppercase">Security Clearance: Level 5</p>
+                                    {/* Profile Header */}
+                                    <div className="w-full glass rounded-[2.5rem] p-10 flex flex-col items-center gap-6">
+                                        <div className="relative">
+                                            <img 
+                                                src={discordUser ? `https://cdn.discordapp.com/avatars/${myDiscordID}/${discordUser.avatar}.png?size=256` : 'logo.png'} 
+                                                className="w-32 h-32 rounded-full border-4 border-primary/20 shadow-[0_0_40px_rgba(239,68,68,0.3)]" 
+                                            />
+                                            <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-4 border-[#070707] rounded-full"></div>
+                                        </div>
+                                        <div className="text-center">
+                                            <h2 className="text-3xl font-mono font-bold tracking-tighter">@{discordUser?.username || 'Onlyonestands'}</h2>
+                                            <p className="text-primary text-[10px] font-mono tracking-[0.5em] uppercase mt-2">Lead Protocol Admin</p>
+                                        </div>
                                     </div>
 
-                                    {/* Live Spotify Widget */}
-                                    <div className="w-full bg-[#1DB954]/5 border border-[#1DB954]/20 p-6 rounded-3xl backdrop-blur-xl transition-all duration-500 hover:bg-[#1DB954]/10">
+                                    {/* Enhanced Spotify Widget */}
+                                    <div className="w-full bg-[#1DB954]/5 border border-[#1DB954]/20 p-6 rounded-[2rem] backdrop-blur-xl transition-all duration-500">
                                         {spotify ? (
                                             <div className="flex items-center gap-6">
-                                                <div className="relative">
-                                                    <img src={spotify.album_art_url} className="w-24 h-24 rounded-2xl shadow-2xl relative z-10" />
-                                                    <div className="absolute inset-0 bg-[#1DB954] blur-2xl opacity-20 animate-pulse"></div>
-                                                </div>
+                                                <img src={spotify.album_art_url} className="w-20 h-20 rounded-2xl shadow-lg animate-[spin_12s_linear_infinite]" />
                                                 <div className="flex-1 overflow-hidden">
-                                                    <div className="flex items-center gap-2 mb-2">
+                                                    <div className="flex items-center gap-2 mb-1.5">
                                                         <span className="w-2 h-2 bg-[#1DB954] rounded-full animate-ping"></span>
-                                                        <span className="text-[10px] font-mono text-[#1DB954] uppercase tracking-widest font-bold">Currently Listening</span>
+                                                        <span className="text-[10px] font-mono text-[#1DB954] uppercase tracking-widest font-bold">Listening</span>
                                                     </div>
-                                                    <h3 className="text-white font-bold text-lg truncate leading-tight">{spotify.track}</h3>
-                                                    <p className="text-white/50 text-sm truncate uppercase tracking-tighter">by {spotify.artist}</p>
+                                                    <h3 className="text-white font-bold text-lg truncate leading-none">{spotify.track}</h3>
+                                                    <p className="text-white/40 text-xs truncate mt-1 uppercase tracking-tighter">{spotify.artist}</p>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="py-6 text-center">
-                                                <p className="text-white/20 font-mono text-[10px] uppercase tracking-[0.3em] italic">Spotify session currently inactive</p>
+                                            <div className="py-4 text-center">
+                                                <span className="text-white/10 font-mono text-[10px] uppercase tracking-[0.4em] italic">No active audio stream</span>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Admin Information Cards */}
+                                    {/* Admin Contact Cards */}
                                     <div className="w-full space-y-3">
-                                        <div className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all cursor-default">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Discord</span>
-                                            <span className="text-sm font-mono text-primary font-bold">Onlyonestands</span>
-                                        </div>
-                                        <a href="mailto:rawr.xyl@gmail.com" className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest group-hover:text-white transition-colors">Email</span>
-                                            <span className="text-sm font-mono text-primary group-hover:underline transition-all">rawr.xyl@gmail.com</span>
-                                        </a>
-                                        <a href="https://github.com/imcomingforyou6959-gif" target="_blank" className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between group hover:border-primary/50 transition-all">
-                                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest group-hover:text-white transition-colors">Github</span>
-                                            <span className="text-sm font-mono text-primary group-hover:underline transition-all truncate ml-4">imcomingforyou6959-gif</span>
-                                        </a>
+                                        {[
+                                            { label: 'Discord', value: 'Onlyonestands' },
+                                            { label: 'Email', value: 'rawr.xyl@gmail.com', href: 'mailto:rawr.xyl@gmail.com' },
+                                            { label: 'Github', value: 'imcomingforyou6959-gif', href: 'https://github.com/imcomingforyou6959-gif' }
+                                        ].map((card, i) => (
+                                            <a 
+                                                key={i}
+                                                href={card.href} 
+                                                target={card.href ? "_blank" : undefined}
+                                                className="glass p-5 rounded-2xl flex items-center justify-between group hover:border-primary/40 transition-all"
+                                            >
+                                                <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">{card.label}</span>
+                                                <span className="text-sm font-mono text-primary group-hover:underline">{card.value}</span>
+                                            </a>
+                                        ))}
                                     </div>
-
-                                    <footer className="mt-12 text-[8px] font-mono text-white/10 uppercase tracking-[0.8em]">rawr.xyz protocol</footer>
                                 </motion.div>
                             )}
                         </AnimatePresence>
                     </main>
+
+                    <footer className="mt-auto py-10 text-[9px] font-mono text-white/5 uppercase tracking-[1em]">rawr.xyz protocol</footer>
                 </div>
             );
         }
