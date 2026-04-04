@@ -1,5 +1,6 @@
 function RainBackground() {
     const canvasRef = React.useRef(null);
+    const mouseRef = React.useRef({ x: -1000, y: -1000 }); // Start mouse off-screen
 
     React.useEffect(() => {
         const canvas = canvasRef.current;
@@ -10,8 +11,15 @@ function RainBackground() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         };
-        resize();
+
+        // Track Mouse Position
+        const handleMouseMove = (e) => {
+            mouseRef.current = { x: e.clientX, y: e.clientY };
+        };
+
         window.addEventListener('resize', resize);
+        window.addEventListener('mousemove', handleMouseMove);
+        resize();
 
         const drops = [];
         const dropCount = 180;
@@ -24,6 +32,7 @@ function RainBackground() {
                 speed: Math.random() * 4 + 3,
                 opacity: Math.random() * 0.15 + 0.03,
                 width: Math.random() * 1.2 + 0.3,
+                offsetX: 0 // Used for the interactive "push"
             });
         }
 
@@ -31,10 +40,26 @@ function RainBackground() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             drops.forEach((drop) => {
+                // INTERACTIVE LOGIC: Calculate distance from mouse
+                const dx = mouseRef.current.x - drop.x;
+                const dy = mouseRef.current.y - drop.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const forceRange = 120; // How close the mouse needs to be
+
+                if (distance < forceRange) {
+                    // Push the rain away from the mouse horizontally
+                    const force = (forceRange - distance) / forceRange;
+                    drop.offsetX = -dx * force * 0.2; 
+                } else {
+                    // Smoothly return to normal slant
+                    drop.offsetX *= 0.95;
+                }
+
                 ctx.beginPath();
-                ctx.moveTo(drop.x, drop.y);
-                // Added a tiny bit of horizontal slant (2) for a more dynamic feel
-                ctx.lineTo(drop.x + 2, drop.y + drop.length);
+                // We add the offsetX to the x-coordinates
+                ctx.moveTo(drop.x + drop.offsetX, drop.y);
+                ctx.lineTo(drop.x + 2 + drop.offsetX, drop.y + drop.length);
+                
                 ctx.strokeStyle = `rgba(140, 160, 255, ${drop.opacity})`;
                 ctx.lineWidth = drop.width;
                 ctx.lineCap = 'round';
@@ -45,6 +70,7 @@ function RainBackground() {
                 if (drop.y > canvas.height) {
                     drop.y = -drop.length;
                     drop.x = Math.random() * canvas.width;
+                    drop.offsetX = 0; // Reset push on new drop
                 }
             });
 
@@ -56,6 +82,7 @@ function RainBackground() {
         return () => {
             cancelAnimationFrame(animationId);
             window.removeEventListener('resize', resize);
+            window.removeEventListener('mousemove', handleMouseMove);
         };
     }, []);
 
