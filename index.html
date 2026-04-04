@@ -2,274 +2,161 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>rawr.xyz | v1.6.5 · Discord UI</title>
-    <link rel="icon" type="image/png" href="logo.png">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rawr.xyz | Classic</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { 
-                        d_darker: '#1e1f22',
-                        d_dark: '#2b2d31',
-                        d_gray: '#313338',
-                        primary: '#ef4444' 
-                    }
-                }
-            }
-        }
-    </script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #1e1f22; color: #dbdee1; margin: 0; overflow: hidden; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e1f22; }
-        ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
-        .discord-shadow { box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
-        input[type='range'] { -webkit-appearance: none; background: #1e1f22; height: 4px; border-radius: 4px; }
-        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #ef4444; cursor: pointer; box-shadow: 0 0 6px #ef4444; border: none; }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap');
+        
+        body { 
+            background-color: #000000; 
+            color: #ffffff; 
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .discord-sidebar { background-color: #111111; }
+        .discord-card { background-color: #181818; border: 1px solid #222; }
+        .active-tab { color: #ff4444; border-left: 2px solid #ff4444; background: rgba(255, 68, 68, 0.05); }
+        
+        /* Classic terminal style for ScriptBlock */
+        .script-block {
+            background: #050505;
+            border: 1px solid #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            color: #00ff00;
+            font-size: 12px;
+            min-height: 80px;
+        }
+
+        .cursor { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-    const { motion, AnimatePresence } = window.Motion;
+    const { useState, useEffect } = React;
 
-    // 1. SEASONAL ENGINE
-    const SeasonalRainBackground = ({ speed = 1 }) => {
-        const canvasRef = React.useRef(null);
-        const mouse = React.useRef({ x: 0, y: 0 });
-        const animationId = React.useRef(null);
-        
-        const getSeason = () => {
-            const month = new Date().getUTCMonth();
-            if ([11, 0, 1].includes(month)) return { name: 'winter', color: '180, 220, 255', count: 420, type: 'snow' };
-            if ([2, 3, 4].includes(month)) return { name: 'spring', color: '255, 170, 200', count: 380, type: 'petal' };
-            if ([5, 6, 7].includes(month)) return { name: 'summer', color: '239, 68, 68', count: 650, type: 'rain' };
-            return { name: 'autumn', color: '255, 140, 60', count: 450, type: 'leaf' };
-        };
-
-        React.useEffect(() => {
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-            const season = getSeason();
-            let particles = [];
-            
-            const resize = () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                initParticles();
-            };
-            
-            const initParticles = () => {
-                particles = [];
-                for (let i = 0; i < season.count; i++) {
-                    particles.push({
-                        x: Math.random() * canvas.width,
-                        y: Math.random() * canvas.height,
-                        length: season.type === 'rain' ? Math.random() * 24 + 12 : Math.random() * 8 + 4,
-                        size: Math.random() * 2.5 + 1,
-                        speedY: (Math.random() * (season.type === 'snow' ? 2 : 8) + 2.5),
-                        speedX: (Math.random() - 0.5),
-                        opacity: Math.random() * 0.5 + 0.2,
-                        spin: Math.random() * Math.PI * 2,
-                    });
-                }
-            };
-            
-            const animate = () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                for (let p of particles) {
-                    p.y += p.speedY * speed;
-                    p.x += (p.speedX + mouse.current.x * 2) * speed;
-                    p.spin += 0.03;
-                    if (p.y > canvas.height) p.y = -30;
-                    
-                    ctx.beginPath();
-                    if (season.type === 'rain') {
-                        ctx.moveTo(p.x, p.y);
-                        ctx.lineTo(p.x, p.y + p.length);
-                        ctx.strokeStyle = `rgba(${season.color}, ${p.opacity})`;
-                        ctx.stroke();
-                    } else {
-                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(${season.color}, ${p.opacity})`;
-                        ctx.fill();
-                    }
-                }
-                animationId.current = requestAnimationFrame(animate);
-            };
-            
-            window.addEventListener('resize', resize);
-            resize();
-            animate();
-            return () => {
-                window.removeEventListener('resize', resize);
-                cancelAnimationFrame(animationId.current);
-            };
-        }, [speed]);
-        
-        return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-0" />;
-    };
-
-    // 2. ICON HELPER
-    const Icon = ({ name, size = 20, className = "" }) => {
-        const iconRef = React.useRef(null);
-        React.useEffect(() => {
-            if (window.lucide) {
-                window.lucide.createIcons({
-                    attrs: { class: className },
-                    nameAttr: 'data-lucide'
-                });
-            }
-        }, [name, className]);
-        return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
-    };
-
-    // 3. TERMINAL BLOCK
+    // Fixed ScriptBlock logic - inside the HTML to ensure visibility
     const ScriptBlock = () => {
-        const [message, setMessage] = React.useState("> system_ready");
-        React.useEffect(() => {
-            const texts = ["> session active", "> rawr.xyz online", "> loading assets", "> engine v1.6.5"];
-            let idx = 0;
+        const [lines, setLines] = useState(["> _"]);
+        const messages = [
+            "> Initializing rawr.xyz...",
+            "> Loading B4NEX modules...",
+            "> Connection established.",
+            "> System: Optimal.",
+            "> Awaiting input..."
+        ];
+
+        useEffect(() => {
+            let i = 0;
             const interval = setInterval(() => {
-                setMessage(texts[idx % texts.length]);
-                idx++;
-            }, 3000);
+                setLines(prev => [...prev.slice(-3), messages[i % messages.length]]);
+                i++;
+            }, 2000);
             return () => clearInterval(interval);
         }, []);
+
         return (
-            <div className="bg-d_darker/60 rounded-xl p-4 border border-white/10 backdrop-blur-sm font-mono text-xs">
-                <div className="flex items-center gap-2 text-primary">
-                    <span className="font-bold">rawr@shell:~$</span>
-                    <span className="text-white/80">{message}</span>
-                </div>
+            <div className="script-block mt-4">
+                {lines.map((l, idx) => <div key={idx}>{l}</div>)}
+                <div className="text-white opacity-50 italic">System Status: Active <span className="cursor">|</span></div>
             </div>
         );
     };
 
-    // 4. MAIN APP
-    function App() {
-        const [channel, setChannel] = React.useState('welcome');
-        const [speed, setSpeed] = React.useState(1.0);
+    const App = () => {
+        const [currentTab, setCurrentTab] = useState('About me');
 
         return (
-            <div className="flex h-screen w-screen overflow-hidden relative bg-d_darker">
-                <SeasonalRainBackground speed={speed} />
-                
-                {/* SERVER RAIL */}
-                <div className="w-[72px] bg-d_darker flex flex-col items-center py-3 gap-2 z-50">
-                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white cursor-pointer hover:rounded-xl transition-all">
-                        <Icon name="terminal" size={24} />
+            <div className="flex h-screen w-full">
+                {/* Sidebar */}
+                <div className="w-64 discord-sidebar flex flex-col p-4 border-r border-white/5">
+                    <div className="text-red-500 font-bold text-xl mb-8 tracking-widest uppercase">rawr.xyz</div>
+                    
+                    <div className="flex flex-col gap-2">
+                        {['About me', 'Settings', 'Script library'].map(tab => (
+                            <div 
+                                key={tab}
+                                onClick={() => setCurrentTab(tab)}
+                                className={`px-4 py-2 cursor-pointer transition-all ${currentTab === tab ? 'active-tab' : 'text-gray-500 hover:text-white'}`}
+                            >
+                                {tab}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-auto flex items-center gap-3 p-2 bg-black/40 rounded">
+                        <img src="logo2.PNG" className="w-10 h-10 rounded shadow-lg" alt="PFP" />
+                        <div>
+                            <div className="text-xs font-bold text-white">Onlyonestands</div>
+                            <div className="text-[10px] text-gray-500 uppercase">Online</div>
+                        </div>
                     </div>
                 </div>
 
-                {/* SIDEBAR */}
-                <div className="w-60 bg-d_dark flex flex-col z-40">
-                    <div className="h-12 border-b border-d_darker flex items-center px-4 font-bold text-white shadow-sm">
-                        RAWR.XYZ
-                    </div>
-                    <div className="flex-1 p-2 space-y-1">
-                        <p className="text-[10px] font-bold text-white/30 uppercase px-2 mb-2 mt-4 tracking-widest">General</p>
-                        <div onClick={() => setChannel('welcome')} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition ${channel === 'welcome' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white'}`}>
-                            <Icon name="hash" size={18} /> welcome
+                {/* Main Content */}
+                <div className="flex-1 p-12 overflow-y-auto">
+                    {currentTab === 'About me' && (
+                        <div className="max-w-xl">
+                            <h1 className="text-3xl font-bold mb-4">About Me</h1>
+                            <p className="text-gray-400 mb-6 leading-relaxed">
+                                Welcome back. This is the classic interface. Currently developing 
+                                private tools and maintaining the rawr ecosystem.
+                            </p>
+                            <h2 className="text-red-500 text-sm font-bold uppercase mb-2">Terminal Output</h2>
+                            <ScriptBlock />
                         </div>
-                        <div onClick={() => setChannel('about')} className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition ${channel === 'about' ? 'bg-d_gray text-white' : 'text-white/40 hover:bg-d_gray/50 hover:text-white'}`}>
-                            <Icon name="user" size={18} /> about-me
-                        </div>
-                    </div>
+                    )}
 
-                    {/* USER PANEL */}
-                    <div className="bg-[#232428] p-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <img src="logo2.PNG" className="w-8 h-8 rounded-full border border-primary/20" />
-                            <div className="leading-tight">
-                                <p className="text-xs font-bold text-white">Onlyonestands</p>
-                                <p className="text-[9px] text-white/40">#0001</p>
+                    {currentTab === 'Settings' && (
+                        <div className="max-w-xl">
+                            <h1 className="text-3xl font-bold mb-4">Settings</h1>
+                            <div className="discord-card p-6 rounded">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span>Performance Mode</span>
+                                    <div className="w-10 h-5 bg-red-600 rounded-full flex items-center justify-end px-1">
+                                        <div className="w-3 h-3 bg-white rounded-full"></div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center opacity-50">
+                                    <span>Streamer Mode</span>
+                                    <div className="w-10 h-5 bg-gray-700 rounded-full flex items-center px-1">
+                                        <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <Icon name="settings" size={14} className="text-white/40 hover:text-white cursor-pointer" />
-                    </div>
-                </div>
+                    )}
 
-                {/* CHAT AREA */}
-                <div className="flex-1 flex flex-col relative z-10 bg-d_gray/20">
-                    <div className="h-12 border-b border-d_darker flex items-center px-4 justify-between bg-d_gray/40 backdrop-blur-md">
-                        <div className="flex items-center gap-2 font-bold text-white">
-                            <Icon name="hash" size={20} className="text-white/40" /> {channel}
+                    {currentTab === 'Script library' && (
+                        <div className="max-w-xl">
+                            <h1 className="text-3xl font-bold mb-6">Script Library</h1>
+                            <div className="grid gap-4">
+                                <div className="discord-card p-4 rounded hover:border-red-500/50 transition-colors cursor-pointer">
+                                    <div className="text-red-500 font-bold">B4NEX Main.lua</div>
+                                    <div className="text-xs text-gray-500">Last updated: 2 hours ago</div>
+                                </div>
+                                <div className="discord-card p-4 rounded hover:border-red-500/50 transition-colors cursor-pointer">
+                                    <div className="text-red-500 font-bold">Anti-Detection.lua</div>
+                                    <div className="text-xs text-gray-500">Last updated: 1 day ago</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-8">
-                        <AnimatePresence mode="wait">
-                            {channel === 'welcome' ? (
-                                <motion.div key="w" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="max-w-2xl mx-auto">
-                                    <div className="w-16 h-16 bg-d_dark rounded-2xl flex items-center justify-center mb-4 shadow-xl">
-                                        <Icon name="hash" size={32} className="text-primary" />
-                                    </div>
-                                    <h1 className="text-4xl font-black text-white uppercase">Welcome to the Hub</h1>
-                                    <p className="text-white/40 mb-8 pb-4 border-b border-white/5">The rawr.xyz protocol is fully operational.</p>
-                                    <ScriptBlock />
-                                    
-                                    <div className="mt-8 bg-d_dark/80 p-6 rounded-xl border border-white/10">
-                                        <div className="flex justify-between text-[10px] font-mono text-white/40 mb-2 uppercase">
-                                            <span>Engine Speed</span>
-                                            <span className="text-primary">{speed.toFixed(1)}x</span>
-                                        </div>
-                                        <input type="range" min="0.2" max="3" step="0.1" value={speed} onChange={(e)=>setSpeed(parseFloat(e.target.value))} className="w-full" />
-                                    </div>
-                                </motion.div>
-                            ) : (
-                                <motion.div key="a" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="max-w-3xl mx-auto">
-                                    <div className="bg-d_dark/80 p-8 rounded-2xl border border-white/10 discord-shadow">
-                                        <div className="flex flex-col md:flex-row gap-6 items-center">
-                                            <img src="logo2.PNG" className="w-24 h-24 rounded-2xl border-2 border-primary/30" />
-                                            <div className="text-center md:text-left">
-                                                <h2 className="text-4xl font-black text-white">Onlyonestands</h2>
-                                                <p className="text-primary font-mono text-xs font-bold uppercase tracking-widest mt-1">Lead Developer</p>
-                                                <p className="mt-4 text-white/60 text-sm leading-relaxed max-w-md">
-                                                    Small coder working on clean tools. Founder of rawr.xyz.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* GAME CARDS */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-                                            <a href="https://www.xbox.com/en-us/play/user/rawr%20cross" target="_blank" className="bg-d_darker p-4 rounded-xl flex items-center gap-4 hover:bg-primary/10 transition border border-white/5">
-                                                <Icon name="gamepad-2" size={24} className="text-primary" />
-                                                <div>
-                                                    <p className="font-bold text-white text-xs">XBOX</p>
-                                                    <p className="text-[10px] font-mono text-white/40 uppercase">rawr cross</p>
-                                                </div>
-                                            </a>
-                                            <a href="https://www.roblox.com/users/engravingangels/profile" target="_blank" className="bg-d_darker p-4 rounded-xl flex items-center gap-4 hover:bg-primary/10 transition border border-white/5">
-                                                <Icon name="crown" size={24} className="text-primary" />
-                                                <div>
-                                                    <p className="font-bold text-white text-xs">ROBLOX</p>
-                                                    <p className="text-[10px] font-mono text-white/40 uppercase">engravingangels</p>
-                                                </div>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    )}
                 </div>
             </div>
         );
-    }
+    };
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
