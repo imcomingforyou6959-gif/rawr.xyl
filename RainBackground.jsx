@@ -60,7 +60,7 @@ function RainBackground() {
                 ctx.moveTo(drop.x + drop.offsetX, drop.y);
                 ctx.lineTo(drop.x + 2 + drop.offsetX, drop.y + drop.length);
                 
-                ctx.strokeStyle = `rgba(140, 160, 255, ${drop.opacity})`;
+                ctx.strokeStyle = 'rgba(255, 100, 100, ${drop.opacity})';
                 ctx.lineWidth = drop.width;
                 ctx.lineCap = 'round';
                 ctx.stroke();
