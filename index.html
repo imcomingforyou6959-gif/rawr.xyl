@@ -8,11 +8,12 @@
     <link rel="icon" type="image/png" href="logo.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
 
     <script>
         tailwind.config = {
@@ -76,7 +77,6 @@
 <script type="text/babel">
     const { motion, AnimatePresence } = window.Motion;
 
-    // --- SCRIPTBLOCK COMPONENT ---
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
@@ -187,11 +187,10 @@
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    const LinkButton = ({ href, iconName, label }) => {
-        React.useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, []);
+    const LinkButton = ({ href, iconClass, label }) => {
         return (
             <a href={href} target="_blank" className="flex items-center gap-4 px-7 py-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.06] hover:border-primary/40 transition-all group backdrop-blur-sm">
-                <i data-lucide={iconName} className="w-5 h-5 text-white/30 group-hover:text-primary transition-colors"></i>
+                <i className={`${iconClass} w-5 h-5 flex items-center justify-center text-white/30 group-hover:text-primary transition-colors text-lg`}></i>
                 <span className="font-bold text-[13px] tracking-tight text-white/60 group-hover:text-white transition-colors">{label}</span>
             </a>
         );
@@ -210,7 +209,6 @@
                     transition={{ duration: 1.2 }} 
                     className="relative z-20 flex flex-col items-center w-full max-w-2xl"
                 >
-                    {/* Bigger, Transparent Logo with Glow & Floating Animation */}
                     <motion.img 
                         src="logo.png" 
                         animate={{ y: [0, -10, 0] }}
@@ -232,9 +230,9 @@
                     </div>
 
                     <div className="flex flex-wrap justify-center gap-4">
-                        <LinkButton href="https://discord.com/invite/eMpUQzFrNG" iconName="message-circle" label="Discord" />
-                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" iconName="github" label="GitHub" />
-                        <LinkButton href="https://www.youtube.com/@rawr.xy3" iconName="youtube" label="YouTube" />
+                        <LinkButton href="https://discord.com/invite/eMpUQzFrNG" iconClass="fa-brands fa-discord" label="Discord" />
+                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" iconClass="fa-brands fa-github" label="GitHub" />
+                        <LinkButton href="https://www.youtube.com/@rawr.xy3" iconClass="fa-brands fa-youtube" label="YouTube" />
                     </div>
 
                     <ScriptBlock />
