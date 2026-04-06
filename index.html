@@ -966,7 +966,7 @@
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
-            version: "v2.0.0",
+            version: "v1.5.1",
             status: "ONLINE",
             statusColor: "green",
             changelog: "Improved stability and performance"
@@ -975,7 +975,7 @@
         React.useEffect(() => {
             const fetchStatus = async () => {
                 try {
-                    const jsonUrl = `https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json?t=${Date.now()}`;
+                    const jsonUrl = `https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyl/refs/heads/main/status.json?t=${Date.now()}`;
                     const response = await fetch(jsonUrl);
                     if (response.ok) {
                         const data = await response.json();
