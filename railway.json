@@ -2,9 +2,18 @@
   "build": {
     "builder": "NIXPACKS"
   },
-  "deploy": {
-    "numReplicas": 1,
-    "restartPolicyType": "ALWAYS",
-    "startCommand": "python main.py"
-  }
+  "routes": [
+    {
+      "src": "/tos",
+      "dest": "/tos.html"
+    },
+    {
+      "src": "/privacy",
+      "dest": "/privacy.html"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
+    }
+  ]
 }
