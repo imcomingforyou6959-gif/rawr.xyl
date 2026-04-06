@@ -10,12 +10,26 @@ from discord.ext import commands, tasks
 TOKEN = os.getenv('BOT_TOKEN')
 GUILD_ID_INT = int(os.getenv('GUILD_ID'))
 GUILD_ID = discord.Object(id=GUILD_ID_INT)
-OWNER_ID = 1071330258172780594
-TICKET_CATEGORY_ID = 1490508234526556321
 
+# Permissions & IDs
+OWNER_ID = 1071330258172780594
+STAFF_ROLE_ID = 1489713077963456564
+MANAGER_ROLE_ID = 1489435265914109972
+TICKET_CATEGORY_ID = 1490508234526556321 # <-- ENSURE THIS IS CORRECT
+
+# URLs
 WEBSITE_URL = "https://rawrs.zapto.org/"
 CHAT_URL = "https://rawr-chat-default-rtdb.firebaseio.com/messages.json"
 STATUS_JSON_URL = "https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json"
+
+def is_staff():
+    """Check if user is Owner, Manager, or Staff"""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.id == OWNER_ID:
+            return True
+        role_ids = [role.id for role in interaction.user.roles]
+        return STAFF_ROLE_ID in role_ids or MANAGER_ROLE_ID in role_ids
+    return app_commands.check(predicate)
 
 class RawrBot(commands.Bot):
     def __init__(self):
@@ -23,6 +37,8 @@ class RawrBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         self.last_chat_timestamp = time.time() * 1000
+        self.processed_msg_ids = set() # Extra layer of double-post protection
+        self.processing_channels = set()
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
@@ -30,46 +46,66 @@ class RawrBot(commands.Bot):
         await self.tree.sync(guild=GUILD_ID)
         self.check_live_chat.start()
 
-    @tasks.loop(seconds=5)
+    @tasks.loop(seconds=3)
     async def check_live_chat(self):
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(CHAT_URL) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if not data: return
+                    if response.status != 200: return
+                    data = await response.json()
+                    if not data: return
+                    
+                    for msg_id, msg in data.items():
+                        msg_ts = msg.get('timestamp', 0)
                         
-                        for msg_id, msg in data.items():
-                            msg_ts = msg.get('timestamp', 0)
-                            if msg.get('origin') == 'web' and msg_ts > self.last_chat_timestamp:
-                                guild = self.get_guild(GUILD_ID_INT)
-                                category = self.get_channel(TICKET_CATEGORY_ID)
-                                channel_name = f"web-{msg['user']}".lower().replace(" ", "-")
-                                
-                                channel = discord.utils.get(category.text_channels, name=channel_name)
-                                if not channel:
-                                    channel = await guild.create_text_channel(channel_name, category=category)
-                                    await channel.send(f"🌐 **New Web Session:** {msg['user']}")
-                                
-                                embed = discord.Embed(description=msg['text'], color=0xef4444)
-                                embed.set_author(name=f"Web: {msg['user']}")
-                                await channel.send(embed=embed)
-                                self.last_chat_timestamp = msg_ts
+                        # Only process web messages newer than our last check
+                        if msg.get('origin') == 'web' and msg_ts > self.last_chat_timestamp and msg_id not in self.processed_msg_ids:
+                            self.last_chat_timestamp = msg_ts
+                            self.processed_msg_ids.add(msg_id)
+                            
+                            guild = self.get_guild(GUILD_ID_INT)
+                            category = self.get_channel(TICKET_CATEGORY_ID)
+                            if not category: continue
+
+                            user_id = msg['user'].lower().replace(" ", "-")
+                            channel_name = f"web-{user_id}"
+                            
+                            if channel_name in self.processing_channels: continue
+
+                            channel = discord.utils.get(category.text_channels, name=channel_name)
+                            
+                            if not channel:
+                                self.processing_channels.add(channel_name)
+                                try:
+                                    overwrites = {
+                                        guild.default_role: discord.PermissionOverride(read_messages=False),
+                                        guild.me: discord.PermissionOverride(read_messages=True)
+                                    }
+                                    channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
+                                    await channel.send(f"🚀 **Session Started:** `{msg['user']}`\nUse `/reply` to chat back.")
+                                finally:
+                                    self.processing_channels.remove(channel_name)
+                            
+                            embed = discord.Embed(description=msg['text'], color=0xef4444)
+                            embed.set_author(name=f"Web: {msg['user']}")
+                            await channel.send(embed=embed)
+
             except Exception as e:
-                print(f"Chat Loop Error: {e}")
+                print(f"Loop Error: {e}")
 
 bot = RawrBot()
 
 @bot.event
 async def on_ready():
-    print(f'🚀 rawr.xyz bot is ONLINE as {bot.user}')
-    await bot.change_presence(activity=discord.Game(name="rawrs.zapto.org"))
+    print(f'🚀 rawr.xyz Security Protocol Online')
+    print(f'Staff Role: {STAFF_ROLE_ID} | Manager Role: {MANAGER_ROLE_ID}')
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.competing, name="rawrs.zapto.org"))
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user: return
 
-    # Handle DM to Ticket Channel
+    # DM Ticket System
     if isinstance(message.channel, discord.DMChannel):
         guild = bot.get_guild(GUILD_ID_INT)
         category = bot.get_channel(TICKET_CATEGORY_ID)
@@ -84,27 +120,24 @@ async def on_message(message):
                 guild.me: discord.PermissionOverride(read_messages=True)
             }
             channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
-            await channel.send(f"🎫 **New Ticket Channel**\nUser: {message.author.mention}\nID: `{message.author.id}`")
+            await channel.send(f"🎫 **New DM Ticket**\nUser: {message.author.mention}\nID: `{message.author.id}`")
 
         embed = discord.Embed(description=message.content, color=0xef4444)
         embed.set_author(name=message.author.name, icon_url=message.author.display_avatar.url)
         await channel.send(embed=embed)
-        await message.author.send("✅ **Message Received.** Our staff has been notified.")
+        await message.author.send("✅ **Delivered.** A staff member will be with you shortly.")
 
     await bot.process_commands(message)
 
-# --- COMMANDS ---
+# --- STAFF COMMANDS ---
 
-@bot.tree.command(name="reply", description="Reply to a ticket or website user")
-@app_commands.describe(content="The message to send back")
+@bot.tree.command(name="reply", description="Reply to a web or DM user")
+@is_staff()
 async def reply(interaction: discord.Interaction, content: str):
-    if interaction.user.id != OWNER_ID:
-        return await interaction.response.send_message("❌ Unauthorized.", ephemeral=True)
-
-    # Web Chat Reply
+    # Web Channel Logic
     if interaction.channel.name.startswith("web-"):
         payload = {
-            "user": "Support",
+            "user": interaction.user.display_name,
             "text": content,
             "timestamp": time.time() * 1000,
             "origin": "discord"
@@ -112,59 +145,56 @@ async def reply(interaction: discord.Interaction, content: str):
         async with aiohttp.ClientSession() as session:
             async with session.post(CHAT_URL, json=payload) as resp:
                 if resp.status == 200:
-                    await interaction.response.send_message(f"✅ Web Reply: {content}")
+                    await interaction.response.send_message(f"**[Web Reply]** {content}")
                 else:
-                    await interaction.response.send_message("❌ Firebase Error.")
+                    await interaction.response.send_message("❌ Sync error.")
 
-    # DM Ticket Reply
+    # DM Ticket Logic
     elif interaction.channel.name.startswith("ticket-"):
-        try:
-            # Extract user ID from channel history or search members
-            member_name = interaction.channel.name.replace("ticket-", "")
-            member = discord.utils.get(interaction.guild.members, name=member_name)
-            if member:
+        member_name = interaction.channel.name.replace("ticket-", "")
+        member = discord.utils.get(interaction.guild.members, name=member_name)
+        if member:
+            try:
                 await member.send(f"💬 **rawr.xyz Support:** {content}")
-                await interaction.response.send_message(f"✅ DM Sent to {member.name}")
-            else:
-                await interaction.response.send_message("❌ User not found in server.")
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Error: {e}")
+                await interaction.response.send_message(f"**[DM Reply to {member.name}]** {content}")
+            except:
+                await interaction.response.send_message("❌ User has DMs disabled.")
+        else:
+            await interaction.response.send_message("❌ User not found.")
     else:
-        await interaction.response.send_message("❌ Run this command inside a ticket channel.", ephemeral=True)
+        await interaction.response.send_message("❌ This is not a ticket channel.", ephemeral=True)
 
-@bot.tree.command(name="close", description="Close and delete the ticket channel")
+@bot.tree.command(name="close", description="Close the current ticket")
+@is_staff()
 async def close(interaction: discord.Interaction):
-    if interaction.user.id != OWNER_ID: return
     if interaction.channel.category_id == TICKET_CATEGORY_ID:
-        await interaction.response.send_message("🔒 Closing ticket in 5 seconds...")
+        await interaction.response.send_message("🔒 **Closing and archiving in 5s...**")
         await asyncio.sleep(5)
         await interaction.channel.delete()
+    else:
+        await interaction.response.send_message("❌ Not a valid ticket channel.", ephemeral=True)
 
-@bot.tree.command(name="website", description="Official link to rawr.xyz")
+# --- PUBLIC COMMANDS ---
+
+@bot.tree.command(name="website", description="Official Site")
 async def website(interaction: discord.Interaction):
-    embed = discord.Embed(title="🌐 Official rawr.xyz website", description=f"[rawrs.zapto.org]({WEBSITE_URL})", color=0xef4444)
-    embed.set_thumbnail(url="https://rawrs.zapto.org/logo.png")
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(f"🔗 **Explore:** {WEBSITE_URL}", ephemeral=True)
 
-@bot.tree.command(name="owner", description="Founder information")
-async def owner(interaction: discord.Interaction):
-    embed = discord.Embed(title="Founder of rawr.xyz", description="**Owner:** Tie\n**Project:** rawr.xyz", color=0xef4444)
-    embed.add_field(name="Links", value="[GitHub](https://github.com/imcomingforyou6959-gif) | [YouTube](https://www.youtube.com/@rawr.xy3)")
-    await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name="updates", description="Fetch live script status")
+@bot.tree.command(name="updates", description="Current script health")
 async def updates(interaction: discord.Interaction):
     async with aiohttp.ClientSession() as session:
         async with session.get(STATUS_JSON_URL) as response:
             if response.status == 200:
                 data = await response.json()
-                status = data.get("status", "Unknown")
-                version = data.get("version", "N/A")
-                embed = discord.Embed(title="🚀 Status Update", description=f"Current Status: **{status.upper()}**", color=0xef4444)
-                embed.add_field(name="Version", value=f"`{version}`")
+                embed = discord.Embed(title="🚀 System Status", color=0xef4444)
+                embed.add_field(name="Status", value=f"**{data.get('status', 'Online').upper()}**")
+                embed.add_field(name="Version", value=f"`{data.get('version', 'Latest')}`")
                 await interaction.response.send_message(embed=embed)
-            else:
-                await interaction.response.send_message("⚠️ Status unavailable.")
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("⛔ You do not have the required roles to use this command.", ephemeral=True)
 
 if __name__ == "__main__":
     bot.run(TOKEN)
