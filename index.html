@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>rawr.xyz | Performance Scripting Hub</title>
+    
+    <title>rawrs.zapto.org | Performance Scripting Hub</title>
     <meta name="description" content="The official repository for rawr.xyz. Safe. Fast. Reliable.">
     <meta name="theme-color" content="#ef4444">
 
@@ -32,203 +33,707 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            background-color: #050505; 
-            color: white; 
-            overflow-x: hidden; 
-            font-family: 'Inter', sans-serif;
-            cursor: crosshair;
-        }
-
-        /* Matrix/Rain Backdrop */
-        .rain-canvas { 
-            position: fixed; top: 0; left: 0; 
-            pointer-events: none; z-index: 0; 
-            opacity: 0.15; 
-        }
-        
-        /* Scanline CRT Effect */
-        .scanline { 
-            width: 100%; height: 100%; 
-            background: linear-gradient(to bottom, transparent 50%, rgba(0, 0, 0, .1) 50%), linear-gradient(90deg, rgba(255, 0, 0, .03), rgba(0, 255, 0, .01), rgba(0, 0, 255, .03));
-            background-size: 100% 4px, 3px 100%;
-            position: fixed; z-index: 50; top: 0; pointer-events: none;
-        }
-
-        .glow-text {
-            text-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
-        }
-
-        /* Custom Scrollbar */
+        body { background-color: #050505; color: white; margin: 0; overflow-x: hidden; font-family: 'Inter', sans-serif; }
+        .rain-canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 1; opacity: 0.12; }
+        .scanline { width: 100%; height: 3px; background: linear-gradient(to bottom, transparent, rgba(239, 68, 68, 0.08), transparent); position: fixed; z-index: 5; top: 0; animation: scan 6s linear infinite; }
+        @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
+        .logo-glow { filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.3)); }
         ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner { border: 2px solid rgba(239, 68, 68, 0.1); border-top: 2px solid #ef4444; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        
+        /* Improved chat styles */
+        .chat-message-web {
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .chat-message-discord {
+            animation: slideInLeft 0.3s ease-out;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            width: fit-content;
+        }
+        
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background: #ef4444;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-10px);
+                opacity: 1;
+            }
+        }
+        
+        /* Notification badge */
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ef4444;
+            color: black;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 0.7;
+            }
+        }
     </style>
 </head>
 <body>
-    <canvas id="rain" class="rain-canvas"></canvas>
-    <div class="scanline"></div>
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { motion, AnimatePresence } = window.Motion;
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded, query, limitToLast, set, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // --- BACKGROUND ANIMATION ---
-        const initRain = () => {
-            const canvas = document.getElementById('rain');
-            const ctx = canvas.getContext('2d');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+    const firebaseConfig = {
+        databaseURL: "https://rawr-chat-default-rtdb.firebaseio.com/",
+        projectId: "rawr-chat"
+    };
 
-            const columns = Math.floor(canvas.width / 20);
-            const drops = new Array(columns).fill(1);
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-            const draw = () => {
-                ctx.fillStyle = 'rgba(5, 5, 5, 0.05)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#ef4444';
-                ctx.font = '15px monospace';
+    // Expose Firebase functions globally
+    window.fbPush = push;
+    window.fbRef = ref;
+    window.fbDb = db;
+    window.fbOnChildAdded = onChildAdded;
+    window.fbQuery = query;
+    window.fbLimit = limitToLast;
+    window.fbSet = set;
+    window.fbServerTimestamp = serverTimestamp;
+    
+    // Generate or retrieve user ID
+    let userId = localStorage.getItem('chat_user_id');
+    if (!userId) {
+        userId = 'Guest_' + Math.floor(Math.random() * 9999);
+        localStorage.setItem('chat_user_id', userId);
+    }
+    
+    window.currentUserId = userId;
+</script>
 
-                for (let i = 0; i < drops.length; i++) {
-                    const text = String.fromCharCode(Math.random() * 128);
-                    ctx.fillText(text, i * 20, drops[i] * 20);
-                    if (drops[i] * 20 > canvas.height && Math.random() > 0.975) drops[i] = 0;
-                    drops[i]++;
+<script type="text/babel">
+    const { motion, AnimatePresence } = window.Motion;
+
+    // --- IMPROVED LIVE CHAT COMPONENT ---
+    const LiveChat = () => {
+        const [isOpen, setIsOpen] = React.useState(false);
+        const [messages, setMessages] = React.useState([]);
+        const [input, setInput] = React.useState("");
+        const [isTyping, setIsTyping] = React.useState(false);
+        const [unreadCount, setUnreadCount] = React.useState(0);
+        const [isConnected, setIsConnected] = React.useState(true);
+        const scrollRef = React.useRef(null);
+        const typingTimeoutRef = React.useRef(null);
+        const lastMessageRef = React.useRef(null);
+
+        // Load messages from localStorage on mount
+        React.useEffect(() => {
+            const savedMessages = localStorage.getItem('chat_messages');
+            if (savedMessages) {
+                try {
+                    const parsed = JSON.parse(savedMessages);
+                    setMessages(parsed.slice(-50)); // Keep last 50 messages
+                } catch (e) {
+                    console.error('Failed to load saved messages:', e);
+                }
+            }
+        }, []);
+
+        // Save messages to localStorage
+        React.useEffect(() => {
+            if (messages.length > 0) {
+                localStorage.setItem('chat_messages', JSON.stringify(messages.slice(-100)));
+            }
+        }, [messages]);
+
+        // Setup Firebase listener
+        React.useEffect(() => {
+            let isMounted = true;
+            
+            const setupListener = () => {
+                if (!window.fbOnChildAdded || !window.fbDb) {
+                    setTimeout(setupListener, 500);
+                    return;
+                }
+                
+                try {
+                    const messagesRef = window.fbRef(window.fbDb, 'messages');
+                    const recentQuery = window.fbQuery(messagesRef, window.fbLimit(50));
+                    
+                    window.fbOnChildAdded(recentQuery, (snapshot) => {
+                        if (!isMounted) return;
+                        
+                        const data = snapshot.val();
+                        // Prevent duplicates
+                        setMessages(prev => {
+                            if (prev.some(m => m.timestamp === data.timestamp && m.text === data.text)) {
+                                return prev;
+                            }
+                            
+                            const newMessages = [...prev, data].sort((a, b) => a.timestamp - b.timestamp);
+                            
+                            // Update unread count if chat is closed and message is not from current user
+                            if (!isOpen && data.user !== window.currentUserId) {
+                                setUnreadCount(count => count + 1);
+                            }
+                            
+                            return newMessages.slice(-100);
+                        });
+                        
+                        setIsConnected(true);
+                    });
+                } catch (error) {
+                    console.error('Firebase listener error:', error);
+                    setIsConnected(false);
                 }
             };
-            setInterval(draw, 33);
+            
+            setupListener();
+            
+            return () => {
+                isMounted = false;
+            };
+        }, [isOpen]);
+
+        // Auto-scroll to bottom
+        React.useEffect(() => {
+            if (scrollRef.current && isOpen) {
+                scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+            }
+        }, [messages, isOpen]);
+
+        // Reset unread count when opening chat
+        React.useEffect(() => {
+            if (isOpen) {
+                setUnreadCount(0);
+            }
+        }, [isOpen]);
+
+        const sendMessage = async () => {
+            if (!input.trim() || !window.fbPush) return;
+            
+            const messageText = input.trim();
+            setInput("");
+            
+            const message = {
+                user: window.currentUserId,
+                text: messageText,
+                timestamp: Date.now(),
+                origin: "web"
+            };
+            
+            try {
+                await window.fbPush(window.fbRef(window.fbDb, 'messages'), message);
+                
+                // Add to local state immediately for better UX
+                setMessages(prev => [...prev, message]);
+                
+                // Clear typing indicator
+                if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
+                    setIsTyping(false);
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+                setInput(messageText); // Restore input on error
+                alert('Failed to send message. Please check your connection.');
+            }
         };
 
-        // --- COMPONENTS ---
-        const LiveChat = () => {
-            const [isOpen, setIsOpen] = React.useState(false);
-            const [messages, setMessages] = React.useState([
-                { id: 1, user: "System", text: "Welcome to the rawr.xyz secure hub.", origin: "discord", timestamp: new Date().toISOString() }
-            ]);
-            const [input, setInput] = React.useState("");
+        const handleTyping = () => {
+            if (!isTyping) {
+                setIsTyping(true);
+            }
+            
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            
+            typingTimeoutRef.current = setTimeout(() => {
+                setIsTyping(false);
+            }, 1000);
+        };
 
-            const handleSend = () => {
-                if (!input.trim()) return;
-                const newMsg = {
-                    id: Date.now(),
-                    user: "Guest",
-                    text: input,
-                    origin: "web",
-                    timestamp: new Date().toISOString()
-                };
-                setMessages([...messages, newMsg]);
-                setInput("");
-            };
+        const formatTime = (timestamp) => {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        };
 
-            return (
-                <div className="fixed bottom-0 right-8 z-[100] w-80 font-mono">
-                    <motion.div 
-                        initial={false}
-                        animate={{ y: isOpen ? 0 : 380 }}
-                        className="bg-[#0a0a0a]/90 border border-white/10 rounded-t-xl shadow-2xl backdrop-blur-md overflow-hidden"
+        return (
+            <div className="fixed bottom-0 right-8 z-[100] w-96 font-mono">
+                <motion.div 
+                    animate={{ y: isOpen ? 0 : 400 }} 
+                    transition={{ type: "spring", damping: 25, stiffness: 160 }}
+                    className="bg-[#0a0a0a] border border-white/10 rounded-t-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                >
+                    {/* Chat Header */}
+                    <div 
+                        onClick={() => setIsOpen(!isOpen)} 
+                        className="bg-primary p-4 cursor-pointer flex justify-between items-center group relative"
                     >
-                        <div 
-                            onClick={() => setIsOpen(!isOpen)}
-                            className="bg-primary p-3 cursor-pointer flex justify-between items-center"
-                        >
-                            <span className="text-[10px] font-bold text-black uppercase tracking-tighter">Live Terminal</span>
-                            <i className={`fas fa-chevron-${isOpen ? 'down' : 'up'} text-black text-[10px]`}></i>
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'} shadow-[0_0_8px_currentColor]`}></div>
+                            <span className="text-[10px] font-black tracking-widest text-black uppercase">
+                                {isConnected ? 'Support Online' : 'Reconnecting...'}
+                            </span>
                         </div>
-                        
-                        <div className="h-80 flex flex-col p-4">
-                            <div className="flex-1 overflow-y-auto space-y-3 mb-4">
-                                {messages.map(msg => (
-                                    <div key={msg.id} className={`text-[11px] ${msg.origin === 'web' ? 'text-right' : 'text-left'}`}>
-                                        <div className="text-white/30 text-[9px] mb-1">{msg.user} • {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                                        <div className={`inline-block px-3 py-2 rounded-lg border ${msg.origin === 'web' ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-white/5 border-white/10 text-white'}`}>
+                        <div className="flex items-center gap-3">
+                            <i className="fas fa-comment-dots text-black text-xs"></i>
+                            <i className={`fas fa-chevron-${isOpen ? 'down' : 'up'} text-black text-[10px] transition-transform`}></i>
+                        </div>
+                        {unreadCount > 0 && !isOpen && (
+                            <div className="notification-badge">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Chat Body */}
+                    <div className="h-[400px] flex flex-col bg-black/95">
+                        {/* Messages Container */}
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth custom-scrollbar">
+                            {messages.length === 0 && (
+                                <div className="text-center text-white/20 py-8">
+                                    <i className="fas fa-comments text-2xl mb-2 block"></i>
+                                    <p className="text-[10px]">No messages yet. Start the conversation!</p>
+                                </div>
+                            )}
+                            
+                            {messages.map((msg, i) => {
+                                const isWeb = msg.origin === 'web';
+                                const isCurrentUser = msg.user === window.currentUserId;
+                                const displayName = isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`);
+                                
+                                return (
+                                    <motion.div 
+                                        initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        key={i} 
+                                        className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[85%]`}
+                                    >
+                                        <div className="flex items-center gap-2 mb-1 justify-between">
+                                            <span className="text-[8px] text-white/30 uppercase tracking-wider font-bold">
+                                                {displayName}
+                                            </span>
+                                            <span className="text-[8px] text-white/20">
+                                                {formatTime(msg.timestamp)}
+                                            </span>
+                                        </div>
+                                        <div className={`${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'} px-3 py-2 rounded-xl border text-[11px] leading-relaxed break-words shadow-lg`}>
                                             {msg.text}
                                         </div>
+                                    </motion.div>
+                                );
+                            })}
+                            
+                            {/* Typing Indicator */}
+                            {isTyping && (
+                                <div className="mr-auto">
+                                    <div className="typing-indicator">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Input Area */}
+                        <div className="p-3 border-t border-white/10 bg-black/50">
                             <div className="flex gap-2">
                                 <input 
-                                    className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-[11px] outline-none focus:border-primary/50 transition-colors"
-                                    placeholder="Message..."
                                     value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                    onChange={(e) => {
+                                        setInput(e.target.value);
+                                        handleTyping();
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            sendMessage();
+                                        }
+                                    }}
+                                    type="text" 
+                                    placeholder="Type a message..." 
+                                    className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[11px] focus:outline-none focus:border-primary/50 rounded-lg text-white placeholder:text-white/20"
+                                    maxLength="500"
                                 />
-                                <button onClick={handleSend} className="bg-primary text-black px-3 rounded-md text-[10px] hover:brightness-110">
-                                    <i className="fas fa-paper-plane"></i>
+                                <button 
+                                    onClick={sendMessage} 
+                                    disabled={!input.trim()}
+                                    className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 disabled:cursor-not-allowed w-10 h-10 rounded-lg transition-all flex items-center justify-center border border-primary/30"
+                                >
+                                    <i className="fas fa-paper-plane text-[11px]"></i>
                                 </button>
                             </div>
+                            <div className="text-[8px] text-white/20 text-center mt-2">
+                                <i className="fas fa-lock text-[6px] mr-1"></i> Encrypted • Staff respond within minutes
+                            </div>
                         </div>
-                    </motion.div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    };
+
+    // --- IMPROVED COMPATIBILITY BAR ---
+    const CompatibilityBar = () => {
+        const executors = [
+            { name: "Xeno", status: "verified" },
+            { name: "Velocity", status: "verified" },
+            { name: "Solara", status: "verified" },
+            { name: "Wave", status: "beta" },
+            { name: "Sirhurt", status: "verified" }
+        ];
+        
+        return (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-8 w-full max-w-lg px-4">
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="h-[1px] flex-1 bg-white/5"></div>
+                    <span className="text-[9px] font-mono text-white/20 tracking-[0.4em] uppercase font-bold">Verified compatibility</span>
+                    <div className="h-[1px] flex-1 bg-white/5"></div>
                 </div>
-            );
-        };
+                <div className="flex flex-wrap justify-center gap-x-8 gap-y-4">
+                    {executors.map(({ name, status }) => (
+                        <div key={name} className="flex items-center gap-2 group cursor-default">
+                            <div className={`w-1 h-1 rounded-full ${status === 'verified' ? 'bg-green-500' : 'bg-yellow-500'} group-hover:bg-primary transition-all duration-300`}></div>
+                            <span className="text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tighter uppercase">{name}</span>
+                            {status === 'beta' && (
+                                <span className="text-[6px] bg-yellow-500/20 text-yellow-500 px-1 rounded">BETA</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </motion.div>
+        );
+    };
 
-        const MainUI = () => {
-            const [copied, setCopied] = React.useState(false);
-            const script = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/script.lua"))()`;
-
-            const copyToClipboard = () => {
-                navigator.clipboard.writeText(script);
+    // --- IMPROVED SCRIPT BLOCK ---
+    function ScriptBlock() {
+        const [copied, setCopied] = React.useState(false);
+        const [config, setConfig] = React.useState({ 
+            version: "v2.0.0", 
+            status: "ONLINE", 
+            statusColor: "green",
+            changelog: "Improved stability and performance"
+        });
+        
+        const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
+        
+        React.useEffect(() => {
+            const fetchStatus = async () => {
+                try {
+                    const jsonUrl = `https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json?t=${Date.now()}`;
+                    const response = await fetch(jsonUrl);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setConfig(data);
+                    }
+                } catch (error) {
+                    console.log('Using default config');
+                }
+            };
+            
+            fetchStatus();
+            // Refresh every 30 seconds
+            const interval = setInterval(fetchStatus, 30000);
+            return () => clearInterval(interval);
+        }, []);
+        
+        const handleCopy = async () => {
+            try {
+                await navigator.clipboard.writeText(scriptText);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
-            };
-
-            React.useEffect(() => {
-                initRain();
-            }, []);
-
-            return (
-                <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-6 text-center">
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="mb-8"
-                    >
-                        <div className="w-24 h-24 bg-primary/20 rounded-3xl border border-primary/40 flex items-center justify-center mb-6 mx-auto shadow-[0_0_50px_rgba(239,68,68,0.2)]">
-                            <i className="fas fa-skull text-primary text-4xl"></i>
-                        </div>
-                        <h1 className="text-5xl font-black tracking-tighter italic glow-text mb-2 uppercase">rawr<span className="text-primary">.xyz</span></h1>
-                        <p className="text-white/40 font-mono text-[10px] tracking-[0.5em] uppercase">Advanced Optimization Framework</p>
-                    </motion.div>
-
-                    <div className="w-full max-w-xl bg-[#0a0a0a]/80 border border-white/10 p-1 rounded-2xl backdrop-blur-lg">
-                        <div className="bg-white/5 rounded-xl p-4 flex items-center justify-between gap-4">
-                            <code className="text-primary font-mono text-[11px] truncate text-left flex-1 opacity-80">{script}</code>
-                            <button 
-                                onClick={copyToClipboard}
-                                className="bg-primary hover:bg-white text-black px-6 py-2 rounded-lg font-black text-[11px] uppercase transition-all duration-300 active:scale-95 whitespace-nowrap"
-                            >
-                                {copied ? "COPIED!" : "COPY SCRIPT"}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-2xl font-mono">
-                        {[
-                            { label: "STATUS", value: "OPERATIONAL", color: "text-green-500" },
-                            { label: "VERSION", value: "V2.4.0", color: "text-white" },
-                            { label: "SECURITY", value: "BYPASSED", color: "text-primary" }
-                        ].map((stat, i) => (
-                            <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-xl">
-                                <div className="text-[9px] text-white/30 mb-1">{stat.label}</div>
-                                <div className={`text-xs font-bold ${stat.color}`}>{stat.value}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <LiveChat />
-                </div>
-            );
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
         };
+        
+        return (
+            <div className="flex flex-col items-center w-full">
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    className="relative w-full max-w-lg bg-black/40 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md mt-12 shadow-2xl"
+                >
+                    <div className="flex items-center justify-between px-5 py-4 bg-white/5 border-b border-white/10">
+                        <div className="flex items-center gap-3">
+                            <i className="fas fa-code text-primary/50 text-xs"></i>
+                            <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">{config.version}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${config.statusColor === 'green' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                            <span className="text-[9px] font-bold text-white/40 uppercase">{config.status}</span>
+                        </div>
+                    </div>
+                    
+                    <div className="p-6">
+                        <div className="bg-black/60 rounded-xl p-4 mb-4 border border-white/5 overflow-x-auto">
+                            <code className="text-primary text-[11px] font-mono break-all select-all">
+                                {scriptText}
+                            </code>
+                        </div>
+                        
+                        <button 
+                            onClick={handleCopy} 
+                            className="w-full py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-xl font-black text-[10px] tracking-widest transition-all uppercase active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[10px]`}></i>
+                            {copied ? "Copied Successfully" : "Copy Official Script"}
+                        </button>
+                        
+                        {config.changelog && (
+                            <div className="mt-3 text-center">
+                                <span className="text-[8px] text-white/20">
+                                    <i className="fas fa-info-circle mr-1"></i> {config.changelog}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </motion.div>
+                <CompatibilityBar />
+            </div>
+        );
+    }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<MainUI />);
-    </script>
+    // --- RAIN BACKGROUND (Performance Optimized) ---
+    const RainBackground = () => {
+        const canvasRef = React.useRef(null);
+        const animationRef = React.useRef(null);
+        
+        React.useEffect(() => {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            let drops = [];
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            
+            const init = () => {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+                
+                const dropCount = Math.min(80, Math.floor(width / 30));
+                drops = Array.from({ length: dropCount }, () => ({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    len: Math.random() * 20 + 10,
+                    vel: Math.random() * 8 + 4
+                }));
+            };
+            
+            const draw = () => {
+                if (!ctx) return;
+                ctx.clearRect(0, 0, width, height);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.3;
+                
+                drops.forEach(d => {
+                    ctx.beginPath();
+                    ctx.moveTo(d.x, d.y);
+                    ctx.lineTo(d.x, d.y + d.len);
+                    ctx.stroke();
+                    
+                    d.y += d.vel;
+                    if (d.y > height) {
+                        d.y = -20;
+                        d.x = Math.random() * width;
+                    }
+                });
+                
+                animationRef.current = requestAnimationFrame(draw);
+            };
+            
+            init();
+            draw();
+            
+            const handleResize = () => {
+                init();
+            };
+            
+            window.addEventListener('resize', handleResize);
+            return () => {
+                window.removeEventListener('resize', handleResize);
+                if (animationRef.current) {
+                    cancelAnimationFrame(animationRef.current);
+                }
+            };
+        }, []);
+        
+        return <canvas ref={canvasRef} className="rain-canvas" />;
+    };
+
+    // --- LINK BUTTON COMPONENT ---
+    const LinkButton = ({ href, icon, label, external = true }) => (
+        <a 
+            href={href} 
+            target={external ? "_blank" : "_self"} 
+            rel={external ? "noopener noreferrer" : ""}
+            className="flex items-center gap-4 px-8 py-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.06] hover:border-primary/40 transition-all group backdrop-blur-sm"
+        >
+            <i className={`${icon} text-white/30 group-hover:text-primary transition-colors text-xl`}></i>
+            <span className="font-bold text-[13px] tracking-tight text-white/60 group-hover:text-white transition-colors">{label}</span>
+        </a>
+    );
+
+    // --- MAIN HOME COMPONENT ---
+    function Home() {
+        const [showNotification, setShowNotification] = React.useState(true);
+        
+        React.useEffect(() => {
+            // Auto-hide notification after 5 seconds
+            const timer = setTimeout(() => setShowNotification(false), 5000);
+            return () => clearTimeout(timer);
+        }, []);
+        
+        return (
+            <div className="relative min-h-screen flex flex-col items-center justify-center bg-background px-6 overflow-hidden py-20">
+                <RainBackground />
+                <div className="scanline" />
+                <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
+                
+                {/* Welcome Notification */}
+                <AnimatePresence>
+                    {showNotification && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -50 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -50 }}
+                            className="fixed top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-xl px-4 py-2 text-xs font-mono"
+                        >
+                            <i className="fas fa-shield-alt mr-2 text-primary"></i>
+                            Secure connection established
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                
+                <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }} 
+                    animate={{ opacity: 1, scale: 1 }} 
+                    transition={{ duration: 0.8 }} 
+                    className="relative z-20 flex flex-col items-center w-full max-w-2xl"
+                >
+                    <motion.img 
+                        src="logo.png" 
+                        animate={{ y: [0, -10, 0] }} 
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} 
+                        className="w-40 h-40 md:w-48 md:h-48 object-contain mb-12 logo-glow" 
+                        alt="logo" 
+                        onError={(e) => {
+                            e.target.src = "https://via.placeholder.com/192x192?text=RAWr";
+                        }}
+                    />
+                    
+                    <div className="text-center mb-14">
+                        <h1 className="text-6xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase">
+                            rawr<span className="text-primary">.xyz</span>
+                        </h1>
+                        <p className="text-white/20 font-mono text-[10px] tracking-[0.6em] mt-4 uppercase">
+                            elite performance execution
+                        </p>
+                    </div>
+                    
+                    <div className="flex flex-wrap justify-center gap-4">
+                        <LinkButton 
+                            href="https://discord.gg/eMpUQzFrNG" 
+                            icon="fa-brands fa-discord" 
+                            label="Community" 
+                        />
+                        <LinkButton 
+                            href="https://github.com/imcomingforyou6959-gif/rawr.xyz" 
+                            icon="fa-brands fa-github" 
+                            label="Repository" 
+                        />
+                        <LinkButton 
+                            href="https://www.youtube.com/@rawr.xy3" 
+                            icon="fa-brands fa-youtube" 
+                            label="Showcase" 
+                        />
+                    </div>
+
+                    <ScriptBlock />
+                </motion.div>
+
+                <footer className="mt-20 z-20 text-[10px] font-mono text-white/10 tracking-[0.8em] uppercase text-center select-none">
+                    rawr.xyz // Secure Access // v2.0
+                </footer>
+                
+                <LiveChat />
+            </div>
+        );
+    }
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Home />);
+</script>
 </body>
 </html>
