@@ -4,6 +4,7 @@ import discord
 import asyncio
 import time
 import logging
+import json
 from typing import Optional, Dict, Set, Any
 from datetime import datetime
 from discord import app_commands
@@ -43,6 +44,8 @@ MESSAGE_FETCH_INTERVAL = 3  # seconds
 CLOSE_DELAY_SECONDS = 5
 MAX_RETRIES = 3
 RETRY_DELAY = 1  # seconds
+PROCESSED_IDS_FILE = "processed_msg_ids.json"  # File to persist processed IDs
+MAX_STORED_IDS = 2000  # Maximum number of message IDs to store
 
 class PermissionChecker:
     """Centralized permission checking"""
@@ -136,20 +139,87 @@ class RawrBot(commands.Bot):
         
         super().__init__(command_prefix="!", intents=intents)
     
+    def load_processed_ids(self):
+        """Load previously processed message IDs from file"""
+        try:
+            if os.path.exists(PROCESSED_IDS_FILE):
+                with open(PROCESSED_IDS_FILE, 'r') as f:
+                    data = json.load(f)
+                    self.processed_msg_ids = set(data.get('processed_ids', []))
+                    logger.info(f"Loaded {len(self.processed_msg_ids)} processed message IDs from {PROCESSED_IDS_FILE}")
+            else:
+                logger.info("No previous processed IDs file found, starting fresh")
+                self.processed_msg_ids = set()
+        except Exception as e:
+            logger.error(f"Failed to load processed IDs: {e}")
+            self.processed_msg_ids = set()
+    
+    def save_processed_ids(self):
+        """Save processed message IDs to file"""
+        try:
+            # Keep only the most recent IDs to prevent file from growing too large
+            ids_to_save = list(self.processed_msg_ids)[-MAX_STORED_IDS:]
+            data = {
+                'processed_ids': ids_to_save,
+                'last_updated': time.time(),
+                'total_processed': len(self.processed_msg_ids)
+            }
+            with open(PROCESSED_IDS_FILE, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.debug(f"Saved {len(ids_to_save)} processed message IDs to {PROCESSED_IDS_FILE}")
+        except Exception as e:
+            logger.error(f"Failed to save processed IDs: {e}")
+    
     async def setup_hook(self):
         """Setup the bot before running"""
+        # Load saved processed IDs
+        self.load_processed_ids()
+        
+        # Initialize session
         self.session = aiohttp.ClientSession()
+        
+        # Sync commands
         self.tree.copy_global_to(guild=GUILD_ID)
         await self.tree.sync(guild=GUILD_ID)
+        
+        # Start background tasks
         self.check_live_chat.start()
+        self.save_processed_ids_task.start()
+        self.cleanup_old_ids_task.start()
+        
         logger.info("Bot setup completed")
     
     async def close(self):
         """Cleanup when bot closes"""
+        # Save processed IDs before closing
+        self.save_processed_ids()
+        
+        # Close session
         if self.session:
             await self.session.close()
+        
+        # Stop tasks
+        self.check_live_chat.cancel()
+        self.save_processed_ids_task.cancel()
+        self.cleanup_old_ids_task.cancel()
+        
         await super().close()
         logger.info("Bot closed successfully")
+    
+    @tasks.loop(minutes=5)  # Save every 5 minutes
+    async def save_processed_ids_task(self):
+        """Periodically save processed message IDs"""
+        self.save_processed_ids()
+    
+    @tasks.loop(hours=24)  # Clean up once per day
+    async def cleanup_old_ids_task(self):
+        """Clean up old processed message IDs to prevent memory bloat"""
+        if len(self.processed_msg_ids) > MAX_STORED_IDS:
+            old_count = len(self.processed_msg_ids)
+            # Keep only the most recent IDs
+            self.processed_msg_ids = set(list(self.processed_msg_ids)[-MAX_STORED_IDS:])
+            logger.info(f"Cleaned up old processed IDs: {old_count} -> {len(self.processed_msg_ids)}")
+            self.save_processed_ids()
     
     async def send_web_reply(self, user: str, content: str, staff_name: str) -> bool:
         """Send a reply to the web chat"""
@@ -167,7 +237,7 @@ class RawrBot(commands.Bot):
                         logger.info(f"Web reply sent to {user}")
                         return True
                     else:
-                        logger.warning(f"Firebase returned status {resp.status}")
+                        logger.warning(f"Firebase returned status {resp.status} (attempt {attempt + 1})")
             except Exception as e:
                 logger.error(f"Failed to send web reply (attempt {attempt + 1}): {e}")
                 if attempt < MAX_RETRIES - 1:
@@ -191,7 +261,10 @@ class RawrBot(commands.Bot):
                 if not data:
                     return
                 
-                for msg_id, msg in data.items():
+                # Sort messages by timestamp to ensure proper order
+                sorted_messages = sorted(data.items(), key=lambda x: x[1].get('timestamp', 0))
+                
+                for msg_id, msg in sorted_messages:
                     await self.process_web_message(msg_id, msg)
                     
         except aiohttp.ClientError as e:
@@ -201,8 +274,9 @@ class RawrBot(commands.Bot):
     
     async def process_web_message(self, msg_id: str, msg: Dict[str, Any]):
         """Process an individual web message"""
-        # Skip if already processed
+        # Skip if already processed (using persistent storage)
         if msg_id in self.processed_msg_ids:
+            logger.debug(f"Skipping already processed message: {msg_id}")
             return
         
         # Skip non-web messages
@@ -210,13 +284,14 @@ class RawrBot(commands.Bot):
             self.processed_msg_ids.add(msg_id)
             return
         
-        # Skip historical messages
+        # Skip historical messages from before bot started
         msg_ts = msg.get('timestamp', 0)
         if msg_ts < self.boot_time:
             self.processed_msg_ids.add(msg_id)
+            logger.debug(f"Skipping historical message from before bot start: {msg_id}")
             return
         
-        # Process new message
+        # Mark as processed immediately to prevent duplicates
         self.processed_msg_ids.add(msg_id)
         
         guild = self.get_guild(GUILD_ID_INT)
@@ -235,6 +310,7 @@ class RawrBot(commands.Bot):
         )
         
         if not channel:
+            logger.error(f"Failed to create or get channel: {channel_name}")
             return
         
         embed = discord.Embed(
@@ -247,9 +323,9 @@ class RawrBot(commands.Bot):
         
         try:
             await channel.send(embed=embed)
-            logger.info(f"Forwarded web message from {msg['user']} to {channel_name}")
+            logger.info(f"Forwarded web message from {msg['user']} to {channel_name} (ID: {msg_id[:8]})")
         except discord.Forbidden:
-            logger.error(f"Cannot send message to channel {channel_name}")
+            logger.error(f"Cannot send message to channel {channel_name} - missing permissions")
         except Exception as e:
             logger.error(f"Failed to send message to channel: {e}")
 
@@ -263,6 +339,8 @@ async def on_ready():
     """Called when bot is ready"""
     logger.info(f"Logged in as: {bot.user.name} (ID: {bot.user.id})")
     logger.info(f"Connected to {len(bot.guilds)} guilds")
+    logger.info(f"Loaded {len(bot.processed_msg_ids)} cached message IDs")
+    
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.competing, 
@@ -290,6 +368,7 @@ async def handle_dm_message(message: discord.Message):
     
     if not guild or not category:
         logger.error("Cannot handle DM: missing guild or category")
+        await message.author.send("❌ **System Error:** Support system unavailable. Please try again later.")
         return
     
     channel_name = f"ticket-{message.author.name}".lower().replace(" ", "-")
@@ -316,9 +395,10 @@ async def handle_dm_message(message: discord.Message):
     try:
         await channel.send(embed=embed)
         await message.author.send("✅ **Message Delivered.** Staff will contact you here shortly.")
-        logger.info(f"Created DM ticket for {message.author.name}")
+        logger.info(f"Created DM ticket for {message.author.name} (ID: {message.author.id})")
     except discord.Forbidden:
         logger.error(f"Cannot send message to channel {channel_name}")
+        await message.author.send("❌ **Error:** Could not deliver your message due to permissions.")
     except Exception as e:
         logger.error(f"Failed to handle DM message: {e}")
         await message.author.send("❌ **Error:** Could not deliver your message.")
@@ -331,13 +411,19 @@ async def reply(interaction: discord.Interaction, content: str):
     """Reply to a web or DM ticket"""
     await interaction.response.defer(ephemeral=False)
     
+    # Validate content
+    if not content or len(content) > 2000:
+        await interaction.followup.send("❌ Message must be between 1 and 2000 characters.")
+        return
+    
     # Web Ticket
     if interaction.channel.name.startswith("web-"):
         user = interaction.channel.name.replace("web-", "").replace("-", " ")
         success = await bot.send_web_reply(user, content, interaction.user.display_name)
         
         if success:
-            await interaction.followup.send(f"**[Web Reply to {user}]** {content}")
+            await interaction.followup.send(f"✅ **[Web Reply to {user}]** {content}")
+            logger.info(f"Staff {interaction.user.name} replied to web user {user}")
         else:
             await interaction.followup.send("❌ Failed to send web reply. Please try again.")
     
@@ -349,17 +435,17 @@ async def reply(interaction: discord.Interaction, content: str):
         if member:
             try:
                 await member.send(f"💬 **rawr.xyz Staff ({interaction.user.display_name}):** {content}")
-                await interaction.followup.send(f"**[DM Sent to {member.name}]** {content}")
-                logger.info(f"Sent DM reply to {member.name}")
+                await interaction.followup.send(f"✅ **[DM Sent to {member.name}]** {content}")
+                logger.info(f"Staff {interaction.user.name} sent DM reply to {member.name}")
             except discord.Forbidden:
-                await interaction.followup.send("❌ Cannot DM user (DMs closed or user left).")
+                await interaction.followup.send("❌ Cannot DM user (DMs closed or user left the server).")
             except Exception as e:
                 logger.error(f"Failed to send DM: {e}")
-                await interaction.followup.send("❌ Failed to send DM.")
+                await interaction.followup.send("❌ Failed to send DM. Please try again.")
         else:
             await interaction.followup.send("❌ User is no longer in the server.")
     else:
-        await interaction.followup.send("❌ Run this in a valid ticket channel.")
+        await interaction.followup.send("❌ Run this command in a valid ticket channel (web- or ticket-).")
 
 @bot.tree.command(name="close", description="Close and delete the current support channel")
 @PermissionChecker.is_manager()
@@ -369,20 +455,20 @@ async def close(interaction: discord.Interaction):
         await interaction.response.send_message("❌ This is not a ticket channel.", ephemeral=True)
         return
     
-    await interaction.response.send_message(f"🔒 **Archiving and closing in {CLOSE_DELAY_SECONDS} seconds...**")
+    channel_name = interaction.channel.name
+    await interaction.response.send_message(f"🔒 **Closing channel in {CLOSE_DELAY_SECONDS} seconds...**")
     await asyncio.sleep(CLOSE_DELAY_SECONDS)
     
-    channel_name = interaction.channel.name
     try:
         await interaction.channel.delete()
-        logger.info(f"Closed ticket channel: {channel_name}")
+        logger.info(f"Closed ticket channel: {channel_name} by {interaction.user.name}")
     except discord.Forbidden:
         await interaction.followup.send("❌ Missing permissions to delete this channel.")
     except Exception as e:
         logger.error(f"Failed to delete channel: {e}")
-        await interaction.followup.send("❌ Failed to close ticket.")
+        await interaction.followup.send("❌ Failed to close ticket. Please try again or contact an admin.")
 
-@bot.tree.command(name="website", description="Official Link")
+@bot.tree.command(name="website", description="Get the official website link")
 async def website(interaction: discord.Interaction):
     """Get the website link"""
     embed = discord.Embed(
@@ -390,9 +476,10 @@ async def website(interaction: discord.Interaction):
         description=f"Explore our website at:\n{WEBSITE_URL}",
         color=0xef4444
     )
+    embed.add_field(name="Features", value="• Free Scripts\n• Active Support\n• Regular Updates", inline=False)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="updates", description="Fetch current script status")
+@bot.tree.command(name="updates", description="Fetch current script status and updates")
 async def updates(interaction: discord.Interaction):
     """Get current script status"""
     async with aiohttp.ClientSession() as session:
@@ -407,33 +494,35 @@ async def updates(interaction: discord.Interaction):
                     )
                     embed.add_field(
                         name="Status", 
-                        value=f"**{data.get('status', 'Unknown').upper()}**"
+                        value=f"**{data.get('status', 'Unknown').upper()}**",
+                        inline=True
                     )
                     embed.add_field(
                         name="Version", 
-                        value=f"`{data.get('version', 'N/A')}`"
+                        value=f"`{data.get('version', 'N/A')}`",
+                        inline=True
                     )
                     if data.get('changelog'):
                         embed.add_field(
-                            name="Changes", 
+                            name="📝 Changes", 
                             value=data['changelog'][:1024],
                             inline=False
                         )
                     await interaction.response.send_message(embed=embed)
                 else:
                     await interaction.response.send_message(
-                        "⚠️ Status JSON unreachable.", 
+                        "⚠️ Status JSON unreachable. Please try again later.", 
                         ephemeral=True
                     )
         except asyncio.TimeoutError:
             await interaction.response.send_message(
-                "⚠️ Request timed out.", 
+                "⚠️ Request timed out. The status service might be down.", 
                 ephemeral=True
             )
         except Exception as e:
             logger.error(f"Failed to fetch updates: {e}")
             await interaction.response.send_message(
-                "⚠️ Failed to fetch updates.", 
+                "⚠️ Failed to fetch updates. Please try again later.", 
                 ephemeral=True
             )
 
@@ -441,10 +530,21 @@ async def updates(interaction: discord.Interaction):
 async def ping(interaction: discord.Interaction):
     """Check bot response time"""
     latency = round(bot.latency * 1000)
+    
+    if latency < 100:
+        color = 0x00ff00
+        status = "Excellent"
+    elif latency < 200:
+        color = 0xffaa00
+        status = "Good"
+    else:
+        color = 0xef4444
+        status = "Poor"
+    
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Latency: `{latency}ms`",
-        color=0xef4444 if latency > 100 else 0x00ff00
+        description=f"**Latency:** `{latency}ms`\n**Status:** {status}",
+        color=color
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -457,14 +557,37 @@ async def stats(interaction: discord.Interaction):
     days = uptime_seconds // 86400
     hours = (uptime_seconds % 86400) // 3600
     minutes = (uptime_seconds % 3600) // 60
+    seconds = uptime_seconds % 60
     
-    embed = discord.Embed(title="📊 Bot Statistics", color=0xef4444)
-    embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m")
-    embed.add_field(name="Processed Messages", value=str(len(bot.processed_msg_ids)))
-    embed.add_field(name="Latency", value=f"{round(bot.latency * 1000)}ms")
-    embed.add_field(name="Guilds", value=str(len(bot.guilds)))
+    embed = discord.Embed(
+        title="📊 Bot Statistics", 
+        color=0xef4444,
+        timestamp=datetime.utcnow()
+    )
+    embed.add_field(name="⏰ Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=True)
+    embed.add_field(name="💬 Processed Messages", value=str(len(bot.processed_msg_ids)), inline=True)
+    embed.add_field(name="⚡ Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
+    embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
+    embed.add_field(name="📁 Stored IDs", value=f"{len(bot.processed_msg_ids)}/{MAX_STORED_IDS}", inline=True)
+    embed.add_field(name="🔄 Last Save", value="Auto-save active", inline=True)
+    embed.set_footer(text="Rawr.xyz Bot", icon_url=bot.user.display_avatar.url)
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="purge_ids", description="Clear cached message IDs (Admin only)")
+@PermissionChecker.is_manager()
+async def purge_ids(interaction: discord.Interaction):
+    """Clear the processed message IDs cache (admin command)"""
+    if interaction.user.id != OWNER_ID:
+        await interaction.response.send_message("❌ This command is owner-only.", ephemeral=True)
+        return
+    
+    old_count = len(bot.processed_msg_ids)
+    bot.processed_msg_ids.clear()
+    bot.save_processed_ids()
+    
+    await interaction.response.send_message(f"✅ Cleared {old_count} cached message IDs.", ephemeral=True)
+    logger.warning(f"Message ID cache purged by owner {interaction.user.name}")
 
 # --- ERROR HANDLING ---
 
@@ -476,7 +599,7 @@ async def on_app_command_error(
     """Handle command errors"""
     if isinstance(error, app_commands.CheckFailure):
         await interaction.response.send_message(
-            "⛔ **Access Denied:** Staff or Manager role required.", 
+            "⛔ **Access Denied:** Staff or Manager role required for this command.", 
             ephemeral=True
         )
     elif isinstance(error, app_commands.CommandOnCooldown):
@@ -484,18 +607,31 @@ async def on_app_command_error(
             f"⏰ **Cooldown:** Try again in {error.retry_after:.1f} seconds.", 
             ephemeral=True
         )
-    else:
-        logger.error(f"Unhandled command error: {error}")
+    elif isinstance(error, discord.Forbidden):
         await interaction.response.send_message(
-            "❌ An unexpected error occurred. Please try again later.", 
+            "❌ I don't have permission to do that. Please check my role permissions.", 
+            ephemeral=True
+        )
+    elif isinstance(error, discord.HTTPException):
+        await interaction.response.send_message(
+            "❌ A network error occurred. Please try again later.", 
+            ephemeral=True
+        )
+    else:
+        logger.error(f"Unhandled command error: {error}", exc_info=True)
+        await interaction.response.send_message(
+            "❌ An unexpected error occurred. The developers have been notified.", 
             ephemeral=True
         )
 
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
     try:
+        logger.info("Starting Rawr.xyz Discord Bot...")
         bot.run(TOKEN)
     except discord.LoginFailure:
-        logger.error("Invalid bot token")
+        logger.error("Invalid bot token. Please check your BOT_TOKEN environment variable.")
+    except discord.PrivilegedIntentsRequired:
+        logger.error("Privileged intents required but not enabled. Enable them in Discord Developer Portal.")
     except Exception as e:
-        logger.error(f"Failed to start bot: {e}")
+        logger.error(f"Failed to start bot: {e}", exc_info=True)
