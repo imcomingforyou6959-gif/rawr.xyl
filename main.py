@@ -253,6 +253,9 @@ class RawrBot(commands.Bot):
         except Exception as e:
             logger.error(f"Failed to send message to channel: {e}")
 
+# Create bot instance
+bot = RawrBot()
+
 # --- EVENT HANDLERS ---
 
 @bot.event
