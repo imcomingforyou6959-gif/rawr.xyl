@@ -103,25 +103,13 @@
         
         /* Chat Message Animations */
         @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         
         @keyframes slideInLeft {
-            from {
-                opacity: 0;
-                transform: translateX(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         
         /* Typing Indicator */
@@ -142,23 +130,12 @@
             animation: typing 1.4s infinite;
         }
         
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
         
         @keyframes typing {
-            0%, 60%, 100% {
-                transform: translateY(0);
-                opacity: 0.4;
-            }
-            30% {
-                transform: translateY(-8px);
-                opacity: 1;
-            }
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-8px); opacity: 1; }
         }
         
         /* Notification Badge */
@@ -181,14 +158,8 @@
         }
         
         @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.2);
-                opacity: 0.8;
-            }
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
         }
         
         /* Connection Status Dot */
@@ -209,34 +180,21 @@
         }
         
         @keyframes statusPulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.6;
-            }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
         
         /* Input Focus */
-        input:focus {
-            outline: none;
-        }
+        input:focus { outline: none; }
 
         /* Mobile optimizations */
         @media (max-width: 640px) {
-            .rain-canvas {
-                opacity: 0.05;
-            }
-            
-            .logo-glow {
-                filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.2));
-            }
+            .rain-canvas { opacity: 0.05; }
+            .logo-glow { filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.2)); }
         }
 
         /* Prevent layout shift */
-        html {
-            overflow-y: scroll;
-        }
+        html { overflow-y: scroll; }
 
         /* Better text rendering */
         body, button, input {
@@ -263,6 +221,14 @@
                 height: 56px;
                 font-size: 20px;
             }
+        }
+
+        /* Footer link hover */
+        .footer-link {
+            transition: color 0.3s ease;
+        }
+        .footer-link:hover {
+            color: #ef4444;
         }
     </style>
 </head>
@@ -360,7 +326,6 @@
                     this.isConnected = true;
                     this.isReady = true;
                     this.reconnectAttempts = 0;
-                    
                     while (this.messageQueue.length > 0) {
                         const msg = this.messageQueue.shift();
                         this.send(msg);
@@ -412,7 +377,6 @@
                 }
                 return false;
             }
-
             try {
                 this.ws.send(JSON.stringify(message));
                 return true;
@@ -423,9 +387,7 @@
         }
 
         close() {
-            if (this.ws) {
-                this.ws.close();
-            }
+            if (this.ws) { this.ws.close(); }
             this.isConnected = false;
         }
     }
@@ -447,7 +409,6 @@
         const currentUserRef = React.useRef(StorageManager.getUserId());
         const processedIdsRef = React.useRef(new Set());
 
-        // Initialize
         React.useEffect(() => {
             const saved = StorageManager.getMessages();
             setMessages(saved);
@@ -464,43 +425,22 @@
 
             return () => {
                 clearInterval(cleanupInterval);
-                if (wsManagerRef.current) {
-                    wsManagerRef.current.close();
-                }
+                if (wsManagerRef.current) { wsManagerRef.current.close(); }
             };
         }, []);
 
         const handleWebSocketMessage = (data) => {
             const msgId = data.id;
-            
-            if (msgId && processedIdsRef.current.has(msgId)) {
-                return;
-            }
-            if (msgId) {
-                processedIdsRef.current.add(msgId);
-            }
+            if (msgId && processedIdsRef.current.has(msgId)) return;
+            if (msgId) processedIdsRef.current.add(msgId);
 
             if (data.type === 'chat' && data.origin === 'web') {
-                addMessage({
-                    user: data.user,
-                    text: data.text,
-                    timestamp: data.timestamp || Date.now(),
-                    origin: 'web',
-                    id: msgId || generateMessageId()
-                });
+                addMessage({ user: data.user, text: data.text, timestamp: data.timestamp || Date.now(), origin: 'web', id: msgId || generateMessageId() });
             } else if (data.type === 'reply') {
-                addMessage({
-                    user: data.user,
-                    text: data.text,
-                    timestamp: data.timestamp || Date.now(),
-                    origin: 'discord',
-                    id: msgId || generateMessageId()
-                });
+                addMessage({ user: data.user, text: data.text, timestamp: data.timestamp || Date.now(), origin: 'discord', id: msgId || generateMessageId() });
                 setStaffReplying(false);
             } else if (data.type === 'typing') {
-                if (data.origin === 'discord') {
-                    setStaffReplying(true);
-                }
+                if (data.origin === 'discord') setStaffReplying(true);
             }
 
             updateConnectionStatus();
@@ -519,17 +459,10 @@
 
         const addMessage = (msg) => {
             setMessages(prev => {
-                if (prev.some(m => m.id === msg.id)) {
-                    return prev;
-                }
-
+                if (prev.some(m => m.id === msg.id)) return prev;
                 const newMessages = [...prev, msg].slice(-CONFIG.MESSAGE_HISTORY_SIZE);
                 StorageManager.setMessages(newMessages);
-
-                if (!isOpen && msg.origin === 'discord') {
-                    setUnreadCount(count => count + 1);
-                }
-
+                if (!isOpen && msg.origin === 'discord') setUnreadCount(count => count + 1);
                 return newMessages;
             });
         };
@@ -537,131 +470,70 @@
         React.useEffect(() => {
             if (scrollRef.current && isOpen) {
                 setTimeout(() => {
-                    scrollRef.current?.scrollTo({
-                        top: scrollRef.current.scrollHeight,
-                        behavior: 'smooth'
-                    });
+                    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
                 }, 0);
             }
         }, [messages, isOpen]);
 
         React.useEffect(() => {
-            if (isOpen) {
-                setUnreadCount(0);
-            }
+            if (isOpen) setUnreadCount(0);
         }, [isOpen]);
 
         React.useEffect(() => {
-            const checkConnection = setInterval(() => {
-                updateConnectionStatus();
-            }, 2000);
-
+            const checkConnection = setInterval(() => { updateConnectionStatus(); }, 2000);
             return () => clearInterval(checkConnection);
         }, []);
 
         const sendMessage = async () => {
             if (!input.trim()) return;
-            if (!isConnected) {
-                setError('Not connected. Please try again.');
-                return;
-            }
+            if (!isConnected) { setError('Not connected. Please try again.'); return; }
 
             const messageText = input.trim().slice(0, CONFIG.MAX_MESSAGE_LENGTH);
             const messageId = generateMessageId();
-
-            const message = {
-                type: 'chat',
-                user: currentUserRef.current,
-                text: messageText,
-                timestamp: Date.now(),
-                origin: 'web',
-                id: messageId
-            };
+            const message = { type: 'chat', user: currentUserRef.current, text: messageText, timestamp: Date.now(), origin: 'web', id: messageId };
 
             setIsLoading(true);
             setInput("");
             setError(null);
-
             addMessage(message);
 
             const sent = wsManagerRef.current.send(message);
-
-            if (!sent) {
-                setError('Failed to send. Retrying...');
-                setInput(messageText);
-            }
-
+            if (!sent) { setError('Failed to send. Retrying...'); setInput(messageText); }
             setIsLoading(false);
         };
 
-        const formatTime = (timestamp) => {
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        };
-
-        const formatDate = (timestamp) => {
-            const date = new Date(timestamp);
-            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        };
-
+        const formatTime = (timestamp) => new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formatDate = (timestamp) => new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
         const shouldShowDateSeparator = (current, previous) => {
             if (!previous) return true;
-            const currentDate = new Date(current.timestamp).toDateString();
-            const previousDate = new Date(previous.timestamp).toDateString();
-            return currentDate !== previousDate;
+            return new Date(current.timestamp).toDateString() !== new Date(previous.timestamp).toDateString();
         };
 
         return (
             <>
-                {/* Chat Toggle Button - Always visible */}
-                <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 1.5 }}
-                    className="fixed bottom-6 right-6 z-[99] sm:bottom-8 sm:right-8"
-                >
-                    <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsOpen(!isOpen)}
-                        className="chat-toggle-btn bg-primary hover:bg-primary/90 text-black shadow-xl transition-all relative"
-                    >
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.5 }} className="fixed bottom-6 right-6 z-[99] sm:bottom-8 sm:right-8">
+                    <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setIsOpen(!isOpen)} className="chat-toggle-btn bg-primary hover:bg-primary/90 text-black shadow-xl transition-all relative">
                         <i className={`fas fa-${isOpen ? 'times' : 'headset'}`}></i>
                         {unreadCount > 0 && !isOpen && (
-                            <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className="notification-badge"
-                            >
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="notification-badge">
                                 {unreadCount > 9 ? '9+' : unreadCount}
                             </motion.div>
                         )}
                     </motion.button>
                 </motion.div>
 
-                {/* Chat Window */}
                 <AnimatePresence>
                     {isOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-                            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                            className="fixed bottom-24 right-6 z-[98] w-96 sm:bottom-32 sm:right-8 font-mono hidden sm:block"
-                        >
+                        <motion.div initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }} transition={{ type: "spring", damping: 20, stiffness: 300 }} className="fixed bottom-24 right-6 z-[98] w-96 sm:bottom-32 sm:right-8 font-mono hidden sm:block">
                             <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl h-96 flex flex-col">
-                                {/* Header */}
                                 <div className="bg-primary p-4 flex justify-between items-center flex-shrink-0">
                                     <div className="flex items-center gap-2">
                                         <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
-                                        <span className="text-[10px] font-black tracking-widest text-black uppercase">
-                                            {connectionStatus}
-                                        </span>
+                                        <span className="text-[10px] font-black tracking-widest text-black uppercase">{connectionStatus}</span>
                                     </div>
                                     <i className="fas fa-headset text-black text-xs"></i>
                                 </div>
 
-                                {/* Messages */}
                                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-black/95">
                                     {messages.length === 0 ? (
                                         <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
@@ -676,100 +548,47 @@
                                                 const isCurrentUser = msg.user === currentUserRef.current;
                                                 const previous = i > 0 ? messages[i - 1] : null;
                                                 const showDate = shouldShowDateSeparator(msg, previous);
-
                                                 return (
                                                     <React.Fragment key={msg.id || i}>
                                                         {showDate && (
                                                             <div className="flex items-center gap-3 my-2">
                                                                 <div className="h-[1px] flex-1 bg-white/5"></div>
-                                                                <span className="text-[8px] text-white/20">
-                                                                    {formatDate(msg.timestamp)}
-                                                                </span>
+                                                                <span className="text-[8px] text-white/20">{formatDate(msg.timestamp)}</span>
                                                                 <div className="h-[1px] flex-1 bg-white/5"></div>
                                                             </div>
                                                         )}
-                                                        <motion.div
-                                                            initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
-                                                            animate={{ opacity: 1, x: 0 }}
-                                                            className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[80%]`}
-                                                        >
+                                                        <motion.div initial={{ opacity: 0, x: isWeb ? 20 : -20 }} animate={{ opacity: 1, x: 0 }} className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[80%]`}>
                                                             <div className="flex items-center gap-1 mb-1 text-[8px]">
-                                                                <span className="text-white/30 uppercase tracking-wider font-bold">
-                                                                    {isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}
-                                                                </span>
-                                                                <span className="text-white/20 ml-auto">
-                                                                    {formatTime(msg.timestamp)}
-                                                                </span>
+                                                                <span className="text-white/30 uppercase tracking-wider font-bold">{isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}</span>
+                                                                <span className="text-white/20 ml-auto">{formatTime(msg.timestamp)}</span>
                                                             </div>
-                                                            <div className={`
-                                                                ${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'}
-                                                                px-3 py-2 rounded-xl border text-[11px] leading-relaxed break-words
-                                                            `}>
+                                                            <div className={`${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'} px-3 py-2 rounded-xl border text-[11px] leading-relaxed break-words`}>
                                                                 {msg.text}
                                                             </div>
                                                         </motion.div>
                                                     </React.Fragment>
                                                 );
                                             })}
-
                                             {staffReplying && (
-                                                <motion.div
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    className="mr-auto"
-                                                >
-                                                    <div className="typing-indicator">
-                                                        <span></span>
-                                                        <span></span>
-                                                        <span></span>
-                                                    </div>
+                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mr-auto">
+                                                    <div className="typing-indicator"><span></span><span></span><span></span></div>
                                                 </motion.div>
                                             )}
                                         </>
                                     )}
                                 </div>
 
-                                {/* Error */}
                                 {error && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="px-4 py-2 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[8px]"
-                                    >
+                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-4 py-2 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[8px]">
                                         <i className="fas fa-exclamation-circle mr-2"></i> {error}
                                     </motion.div>
                                 )}
 
-                                {/* Input */}
                                 <div className="border-t border-white/10 bg-black/50 p-4 flex-shrink-0">
                                     <div className="flex gap-2 mb-2">
-                                        <input
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) {
-                                                    e.preventDefault();
-                                                    sendMessage();
-                                                }
-                                            }}
-                                            disabled={!isConnected || isLoading}
-                                            type="text"
-                                            placeholder={isConnected ? "Type a message..." : "Connecting..."}
-                                            className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[11px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50"
-                                            maxLength={CONFIG.MAX_MESSAGE_LENGTH}
-                                        />
-                                        <motion.button
-                                            whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }}
-                                            whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }}
-                                            onClick={sendMessage}
-                                            disabled={!input.trim() || !isConnected || isLoading}
-                                            className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-10 h-10 rounded-lg flex items-center justify-center border border-primary/30 font-bold"
-                                        >
-                                            {isLoading ? (
-                                                <i className="fas fa-spinner text-[11px] animate-spin"></i>
-                                            ) : (
-                                                <i className="fas fa-paper-plane text-[11px]"></i>
-                                            )}
+                                        <input value={input} onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) { e.preventDefault(); sendMessage(); } }} disabled={!isConnected || isLoading} type="text" placeholder={isConnected ? "Type a message..." : "Connecting..."} className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[11px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50" maxLength={CONFIG.MAX_MESSAGE_LENGTH} />
+                                        <motion.button whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }} whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }} onClick={sendMessage} disabled={!input.trim() || !isConnected || isLoading} className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-10 h-10 rounded-lg flex items-center justify-center border border-primary/30 font-bold">
+                                            {isLoading ? <i className="fas fa-spinner text-[11px] animate-spin"></i> : <i className="fas fa-paper-plane text-[11px]"></i>}
                                         </motion.button>
                                     </div>
                                     <div className="text-[8px] text-white/20 text-center">
@@ -782,32 +601,19 @@
                     )}
                 </AnimatePresence>
 
-                {/* Mobile Chat - Full Screen */}
                 <AnimatePresence>
                     {isOpen && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[98] bg-black/95 sm:hidden flex flex-col"
-                        >
-                            {/* Header */}
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[98] bg-black/95 sm:hidden flex flex-col">
                             <div className="bg-primary p-4 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
                                     <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
-                                    <span className="text-[10px] font-black tracking-widest text-black uppercase">
-                                        {connectionStatus}
-                                    </span>
+                                    <span className="text-[10px] font-black tracking-widest text-black uppercase">{connectionStatus}</span>
                                 </div>
-                                <motion.button
-                                    onClick={() => setIsOpen(false)}
-                                    className="text-black text-2xl"
-                                >
+                                <motion.button onClick={() => setIsOpen(false)} className="text-black text-2xl">
                                     <i className="fas fa-times"></i>
                                 </motion.button>
                             </div>
 
-                            {/* Messages */}
                             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                                 {messages.length === 0 ? (
                                     <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
@@ -822,100 +628,47 @@
                                             const isCurrentUser = msg.user === currentUserRef.current;
                                             const previous = i > 0 ? messages[i - 1] : null;
                                             const showDate = shouldShowDateSeparator(msg, previous);
-
                                             return (
                                                 <React.Fragment key={msg.id || i}>
                                                     {showDate && (
                                                         <div className="flex items-center gap-3 my-3">
                                                             <div className="h-[1px] flex-1 bg-white/5"></div>
-                                                            <span className="text-[9px] text-white/20">
-                                                                {formatDate(msg.timestamp)}
-                                                            </span>
+                                                            <span className="text-[9px] text-white/20">{formatDate(msg.timestamp)}</span>
                                                             <div className="h-[1px] flex-1 bg-white/5"></div>
                                                         </div>
                                                     )}
-                                                    <motion.div
-                                                        initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
-                                                        animate={{ opacity: 1, x: 0 }}
-                                                        className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[90%]`}
-                                                    >
+                                                    <motion.div initial={{ opacity: 0, x: isWeb ? 20 : -20 }} animate={{ opacity: 1, x: 0 }} className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[90%]`}>
                                                         <div className="flex items-center gap-1 mb-1 text-[9px]">
-                                                            <span className="text-white/30 uppercase tracking-wider font-bold">
-                                                                {isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}
-                                                            </span>
-                                                            <span className="text-white/20 ml-auto">
-                                                                {formatTime(msg.timestamp)}
-                                                            </span>
+                                                            <span className="text-white/30 uppercase tracking-wider font-bold">{isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}</span>
+                                                            <span className="text-white/20 ml-auto">{formatTime(msg.timestamp)}</span>
                                                         </div>
-                                                        <div className={`
-                                                            ${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'}
-                                                            px-4 py-2 rounded-xl border text-[12px] leading-relaxed break-words
-                                                        `}>
+                                                        <div className={`${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'} px-4 py-2 rounded-xl border text-[12px] leading-relaxed break-words`}>
                                                             {msg.text}
                                                         </div>
                                                     </motion.div>
                                                 </React.Fragment>
                                             );
                                         })}
-
                                         {staffReplying && (
-                                            <motion.div
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                className="mr-auto"
-                                            >
-                                                <div className="typing-indicator">
-                                                    <span></span>
-                                                    <span></span>
-                                                    <span></span>
-                                                </div>
+                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mr-auto">
+                                                <div className="typing-indicator"><span></span><span></span><span></span></div>
                                             </motion.div>
                                         )}
                                     </>
                                 )}
                             </div>
 
-                            {/* Error */}
                             {error && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="px-4 py-3 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[9px]"
-                                >
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-4 py-3 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[9px]">
                                     <i className="fas fa-exclamation-circle mr-2"></i> {error}
                                 </motion.div>
                             )}
 
-                            {/* Input */}
                             <div className="border-t border-white/10 bg-black/50 p-4">
                                 <div className="flex gap-2 mb-2">
-                                    <input
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) {
-                                                e.preventDefault();
-                                                sendMessage();
-                                            }
-                                        }}
-                                        disabled={!isConnected || isLoading}
-                                        type="text"
-                                        placeholder={isConnected ? "Type a message..." : "Connecting..."}
-                                        className="bg-white/5 border border-white/10 flex-1 px-4 py-3 text-[12px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50"
-                                        maxLength={CONFIG.MAX_MESSAGE_LENGTH}
-                                    />
-                                    <motion.button
-                                        whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }}
-                                        whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }}
-                                        onClick={sendMessage}
-                                        disabled={!input.trim() || !isConnected || isLoading}
-                                        className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-12 h-12 rounded-lg flex items-center justify-center border border-primary/30 font-bold"
-                                    >
-                                        {isLoading ? (
-                                            <i className="fas fa-spinner text-[14px] animate-spin"></i>
-                                        ) : (
-                                            <i className="fas fa-paper-plane text-[14px]"></i>
-                                        )}
+                                    <input value={input} onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) { e.preventDefault(); sendMessage(); } }} disabled={!isConnected || isLoading} type="text" placeholder={isConnected ? "Type a message..." : "Connecting..."} className="bg-white/5 border border-white/10 flex-1 px-4 py-3 text-[12px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50" maxLength={CONFIG.MAX_MESSAGE_LENGTH} />
+                                    <motion.button whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }} whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }} onClick={sendMessage} disabled={!input.trim() || !isConnected || isLoading} className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-12 h-12 rounded-lg flex items-center justify-center border border-primary/30 font-bold">
+                                        {isLoading ? <i className="fas fa-spinner text-[14px] animate-spin"></i> : <i className="fas fa-paper-plane text-[14px]"></i>}
                                     </motion.button>
                                 </div>
                                 <div className="text-[8px] text-white/20 text-center">
@@ -952,9 +705,7 @@
                         <div key={name} className="flex items-center gap-2 group cursor-default">
                             <div className={`w-1.5 h-1.5 rounded-full ${status === 'verified' ? 'bg-green-500' : 'bg-yellow-500'} group-hover:bg-primary transition-all`}></div>
                             <span className="text-[9px] sm:text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tight uppercase">{name}</span>
-                            {status === 'beta' && (
-                                <span className="text-[6px] bg-yellow-500/20 text-yellow-500 px-1.5 rounded">BETA</span>
-                            )}
+                            {status === 'beta' && <span className="text-[6px] bg-yellow-500/20 text-yellow-500 px-1.5 rounded">BETA</span>}
                         </div>
                     ))}
                 </div>
@@ -1007,11 +758,7 @@
 
         return (
             <div className="flex flex-col items-center w-full">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0"
-                >
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0">
                     <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 bg-white/5 border-b border-white/10">
                         <div className="flex items-center gap-3">
                             <i className="fas fa-code text-primary/50 text-xs"></i>
@@ -1030,12 +777,7 @@
                             </code>
                         </div>
 
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleCopy}
-                            className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-[11px] tracking-widest transition-all uppercase flex items-center justify-center gap-2"
-                        >
+                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleCopy} className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-[11px] tracking-widest transition-all uppercase flex items-center justify-center gap-2">
                             <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[10px] sm:text-[11px]`}></i>
                             {copied ? "Copied Successfully" : "Copy Official Script"}
                         </motion.button>
@@ -1062,7 +804,6 @@
         React.useEffect(() => {
             const canvas = canvasRef.current;
             if (!canvas) return;
-            
             const ctx = canvas.getContext('2d');
             let drops = [];
             let width = window.innerWidth;
@@ -1075,10 +816,7 @@
                 canvas.height = height;
 
                 const isMobile = width < 640;
-                const dropCount = isMobile 
-                    ? Math.min(30, Math.floor(width / 50))
-                    : Math.min(80, Math.floor(width / 30));
-                
+                const dropCount = isMobile ? Math.min(30, Math.floor(width / 50)) : Math.min(80, Math.floor(width / 30));
                 drops = Array.from({ length: dropCount }, () => ({
                     x: Math.random() * width,
                     y: Math.random() * height,
@@ -1099,12 +837,8 @@
                     ctx.moveTo(d.x, d.y);
                     ctx.lineTo(d.x, d.y + d.len);
                     ctx.stroke();
-
                     d.y += d.vel;
-                    if (d.y > height) {
-                        d.y = -20;
-                        d.x = Math.random() * width;
-                    }
+                    if (d.y > height) { d.y = -20; d.x = Math.random() * width; }
                 });
 
                 animationRef.current = requestAnimationFrame(draw);
@@ -1113,16 +847,10 @@
             init();
             draw();
 
-            const handleResize = () => {
-                init();
-            };
-
-            window.addEventListener('resize', handleResize);
+            window.addEventListener('resize', init);
             return () => {
-                window.removeEventListener('resize', handleResize);
-                if (animationRef.current) {
-                    cancelAnimationFrame(animationRef.current);
-                }
+                window.removeEventListener('resize', init);
+                if (animationRef.current) cancelAnimationFrame(animationRef.current);
             };
         }, []);
 
@@ -1159,36 +887,23 @@
                 <div className="scanline" />
                 <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
 
-                {/* Welcome Notification */}
                 <AnimatePresence>
                     {showNotification && (
-                        <motion.div
-                            initial={{ opacity: 0, y: -50 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -50 }}
-                            className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono"
-                        >
+                        <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
                             <i className="fas fa-shield-alt mr-2 text-primary"></i>
                             Secure connection established
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.8 }}
-                    className="relative z-20 flex flex-col items-center w-full max-w-4xl"
-                >
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }} className="relative z-20 flex flex-col items-center w-full max-w-4xl">
                     <motion.img
                         src="logo.png"
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                         className="w-28 h-28 sm:w-44 sm:h-44 md:w-56 md:h-56 object-contain mb-10 sm:mb-16 logo-glow"
                         alt="rawr.xyz logo"
-                        onError={(e) => {
-                            e.target.src = "https://via.placeholder.com/224x224?text=RAWr";
-                        }}
+                        onError={(e) => { e.target.src = "https://via.placeholder.com/224x224?text=RAWr"; }}
                     />
 
                     <div className="text-center mb-10 sm:mb-16">
@@ -1201,28 +916,33 @@
                     </div>
 
                     <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
-                        <LinkButton
-                            href="https://discord.gg/eMpUQzFrNG"
-                            icon="fa-brands fa-discord"
-                            label="Community"
-                        />
-                        <LinkButton
-                            href="https://github.com/imcomingforyou6959-gif/rawr.xyz"
-                            icon="fa-brands fa-github"
-                            label="Repository"
-                        />
-                        <LinkButton
-                            href="https://www.youtube.com/@rawr.xy3"
-                            icon="fa-brands fa-youtube"
-                            label="Showcase"
-                        />
+                        <LinkButton href="https://discord.gg/eMpUQzFrNG" icon="fa-brands fa-discord" label="Community" />
+                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
+                        <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="Showcase" />
                     </div>
 
                     <ScriptBlock />
                 </motion.div>
 
-                <footer className="mt-16 sm:mt-24 z-20 text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase text-center select-none">
-                    rawr.xyz // Secure Access // v2.0
+                {/* ── UPDATED FOOTER ── */}
+                <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
+                    <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
+                        rawr.xyz // Secure Access // v2.0
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/20 tracking-normal">
+                        <a href="/" className="footer-link">Home</a>
+                        <span className="text-white/10">•</span>
+                        <a href="/tos" className="footer-link">Terms of Service</a>
+                        <span className="text-white/10">•</span>
+                        <a href="/privacy" className="footer-link">Privacy Policy</a>
+                        <span className="text-white/10">•</span>
+                        <a href="https://discord.gg/eMpUQzFrNG" target="_blank" rel="noopener noreferrer" className="footer-link">
+                            <i className="fab fa-discord mr-1"></i>Support
+                        </a>
+                    </div>
+                    <div className="text-[7px] sm:text-[8px] font-mono text-white/10 mt-3 tracking-normal">
+                        © 2026 rawr.xyz - All Rights Reserved
+                    </div>
                 </footer>
 
                 <LiveChat />
@@ -1230,7 +950,6 @@
         );
     }
 
-    // Render app
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<Home />);
 </script>
