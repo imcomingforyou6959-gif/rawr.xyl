@@ -1,0 +1,32 @@
+name: Deploy Bot
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Run bot
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        GUILD_ID: ${{ secrets.GUILD_ID }}
+        TICKET_CATEGORY_ID: ${{ secrets.TICKET_CATEGORY_ID }}
+        OWNER_ID: ${{ secrets.OWNER_ID }}
+        STAFF_ROLE_ID: ${{ secrets.STAFF_ROLE_ID }}
+        MANAGER_ROLE_ID: ${{ secrets.MANAGER_ROLE_ID }}
+      run: |
+        python main.py
