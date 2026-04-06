@@ -548,30 +548,33 @@ class RawrBot(commands.Bot):
 
 # --- EVENT HANDLERS ---
 
-@commands.Bot.event
-async def on_ready(self: RawrBot) -> None:
-    """Called when bot is ready"""
-    logger.info(f"Logged in: {self.user.name} ({self.user.id})")
-    logger.info(f"Connected to {len(self.guilds)} guilds")
+async def setup_events(bot: RawrBot) -> None:
+    """Register event handlers"""
     
-    await self.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.competing,
-            name="rawrs.zapto.org"
+    @bot.event
+    async def on_ready() -> None:
+        """Called when bot is ready"""
+        logger.info(f"Logged in: {bot.user.name} ({bot.user.id})")
+        logger.info(f"Connected to {len(bot.guilds)} guilds")
+        
+        await bot.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.competing,
+                name="rawrs.zapto.org"
+            )
         )
-    )
-
-@commands.Bot.event
-async def on_message(self: RawrBot, message: discord.Message) -> None:
-    """Handle incoming messages"""
-    if message.author == self.user:
-        return
     
-    if isinstance(message.channel, discord.DMChannel):
-        await handle_dm(self, message)
-        return
-    
-    await self.process_commands(message)
+    @bot.event
+    async def on_message(message: discord.Message) -> None:
+        """Handle incoming messages"""
+        if message.author == bot.user:
+            return
+        
+        if isinstance(message.channel, discord.DMChannel):
+            await handle_dm(bot, message)
+            return
+        
+        await bot.process_commands(message)
 
 async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
     """Handle DM messages"""
