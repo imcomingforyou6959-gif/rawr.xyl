@@ -5,32 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <title>rawrs.zapto.org | Performance Scripting Hub</title>
-    <meta name="title" content="rawrs.zapto.org | Performance Scripting Hub">
-    <meta name="description" content="The official repository for rawr.xyz, verified executor compatibility. Safe. Fast. Reliable.">
-    <meta name="keywords" content="rawr.xyz, rawrs.zapto.org, Roblox Scripts, B4NEX, Lua Scripts, Script Hub, Roblox Executor, Xeno, Velocity, Solara, Wave, Sirhurt">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://rawrs.zapto.org/">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://rawrs.zapto.org/">
-    <meta property="og:title" content="rawrs.zapto.org — Official Hub">
-    <meta property="og:description" content="Experience high-performance execution. Optimized for Xeno, Velocity, Solara, and more. Access the official repository and community.">
-    <meta property="og:image" content="https://rawrs.zapto.org/logo.png">
-    <meta property="og:image:alt" content="rawr.xyz Official Logo">
+    <meta name="description" content="The official repository for rawr.xyz. Safe. Fast. Reliable.">
     <meta name="theme-color" content="#ef4444">
 
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://rawrs.zapto.org/">
-    <meta property="twitter:title" content="rawrs.zapto.org — Official Hub">
-    <meta property="twitter:description" content="Amazing Execution Time and regular updates.">
-    <meta property="twitter:image" content="https://rawrs.zapto.org/logo.png">
-
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="dabf5da2-bbe9-4bae-9f67-8bf0c0686daf"></script>
-
     <link rel="icon" type="image/png" href="logo.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
@@ -60,6 +41,7 @@
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
     </style>
 </head>
 <body>
@@ -67,7 +49,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, push, onChildAdded, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         databaseURL: "https://rawr-chat-default-rtdb.firebaseio.com/",
@@ -77,11 +59,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Make functions global so React (Babel) can use them
     window.fbPush = push;
     window.fbRef = ref;
     window.fbDb = db;
     window.fbOnChildAdded = onChildAdded;
+    window.fbQuery = query;
+    window.fbLimit = limitToLast;
 </script>
 
 <script type="text/babel">
@@ -93,65 +76,77 @@
         const [messages, setMessages] = React.useState([]);
         const [input, setInput] = React.useState("");
         const scrollRef = React.useRef(null);
+        const listeningStarted = React.useRef(false);
 
         React.useEffect(() => {
-            // Wait for Firebase global bridge to be ready
-            const timer = setInterval(() => {
+            if (listeningStarted.current) return;
+            const setupListener = setInterval(() => {
                 if (window.fbOnChildAdded && window.fbDb) {
+                    listeningStarted.current = true;
                     const messagesRef = window.fbRef(window.fbDb, 'messages');
-                    window.fbOnChildAdded(messagesRef, (snapshot) => {
-                        setMessages(prev => [...prev, snapshot.val()]);
+                    const recentQuery = window.fbQuery(messagesRef, window.fbLimit(25));
+                    
+                    window.fbOnChildAdded(recentQuery, (snapshot) => {
+                        const data = snapshot.val();
+                        setMessages(prev => {
+                            if (prev.some(m => m.timestamp === data.timestamp && m.text === data.text)) return prev;
+                            return [...prev, data];
+                        });
                     });
-                    clearInterval(timer);
+                    clearInterval(setupListener);
                 }
-            }, 100);
-            return () => clearInterval(timer);
+            }, 200);
+            return () => clearInterval(setupListener);
         }, []);
 
         React.useEffect(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }, [messages]);
+            if (scrollRef.current) {
+                scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+            }
+        }, [messages, isOpen]);
 
         const sendMessage = () => {
             if (!input.trim() || !window.fbPush) return;
-            
-            try {
-                window.fbPush(window.fbRef(window.fbDb, 'messages'), {
-                    user: "Guest_" + Math.floor(Math.random() * 9999),
-                    text: input,
-                    timestamp: Date.now(),
-                    origin: "web"
-                });
-                setInput(""); // Clears the box ONLY if successful
-            } catch (err) {
-                console.error("Firebase send failed:", err);
-            }
+            window.fbPush(window.fbRef(window.fbDb, 'messages'), {
+                user: "Guest_" + Math.floor(Math.random() * 999),
+                text: input,
+                timestamp: Date.now(),
+                origin: "web"
+            });
+            setInput("");
         };
 
         return (
             <div className="fixed bottom-0 right-8 z-[100] w-80 font-mono">
                 <motion.div 
                     animate={{ y: isOpen ? 0 : 350 }} 
-                    transition={{ type: "spring", damping: 20 }}
-                    className="bg-[#0a0a0a] border border-white/10 rounded-t-2xl shadow-2xl overflow-hidden"
+                    transition={{ type: "spring", damping: 22, stiffness: 150 }}
+                    className="bg-[#0a0a0a] border border-white/10 rounded-t-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
                 >
                     <div onClick={() => setIsOpen(!isOpen)} className="bg-primary p-4 cursor-pointer flex justify-between items-center group">
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
-                            <span className="text-[10px] font-black tracking-widest text-black uppercase">Live Support</span>
+                            <div className="w-2 h-2 bg-black rounded-full animate-pulse shadow-[0_0_8px_black]"></div>
+                            <span className="text-[10px] font-black tracking-widest text-black uppercase">Support Online</span>
                         </div>
-                        <i className={`fas fa-chevron-${isOpen ? 'down' : 'up'} text-black text-xs transition-transform group-hover:scale-125`}></i>
+                        <i className={`fas fa-chevron-${isOpen ? 'down' : 'up'} text-black text-[10px]`}></i>
                     </div>
                     
                     <div className="h-[340px] flex flex-col bg-black/95">
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth custom-scrollbar">
                             {messages.map((msg, i) => (
-                                <div key={i} className={`${msg.origin === 'web' ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[85%]`}>
-                                    <span className="text-[7px] text-white/20 block uppercase mb-1 tracking-tighter">{msg.user}</span>
-                                    <div className={`${msg.origin === 'web' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-white/5 text-white border-white/10'} px-3 py-2 rounded-xl border text-[11px] break-words shadow-sm`}>
+                                <motion.div 
+                                    initial={{ opacity: 0, x: msg.origin === 'web' ? 10 : -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    key={i} 
+                                    className={`${msg.origin === 'web' ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[85%]`}
+                                >
+                                    <span className="text-[7px] text-white/20 block uppercase mb-1 tracking-widest font-bold">
+                                        {msg.origin === 'web' ? 'Client' : `${msg.user}`}
+                                    </span>
+                                    <div className={`${msg.origin === 'web' ? 'bg-primary/10 text-primary border-primary/30' : 'bg-white/5 text-white border-white/10'} px-3 py-2 rounded-xl border text-[11px] leading-relaxed break-words shadow-lg`}>
                                         {msg.text}
                                     </div>
-                                </div>
+                                </motion.div>
                             ))}
                         </div>
                         <div className="p-3 border-t border-white/5 bg-black flex gap-2">
@@ -160,11 +155,11 @@
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                                 type="text" 
-                                placeholder="Inquiry here..." 
+                                placeholder="Type a message..." 
                                 className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[10px] focus:outline-none focus:border-primary/50 rounded-lg text-white"
                             />
-                            <button onClick={sendMessage} className="bg-primary/10 hover:bg-primary/30 text-primary w-10 h-10 rounded-lg transition-all flex items-center justify-center border border-primary/20">
-                                <i className="fas fa-paper-plane text-xs"></i>
+                            <button onClick={sendMessage} className="bg-primary/10 hover:bg-primary text-primary hover:text-black w-10 h-10 rounded-lg transition-all flex items-center justify-center border border-primary/20">
+                                <i className="fas fa-paper-plane text-[10px]"></i>
                             </button>
                         </div>
                     </div>
@@ -173,24 +168,23 @@
         );
     };
 
-    // --- OLD WEBSITE COMPONENTS ---
+    // --- SUB-COMPONENTS ---
     const CompatibilityBar = () => {
         const executors = ["Xeno", "Velocity", "Solara", "Wave", "Sirhurt"];
         return (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-8 w-full max-w-lg px-4">
                 <div className="flex items-center gap-4 mb-4">
                     <div className="h-[1px] flex-1 bg-white/5"></div>
-                    <span className="text-[9px] font-mono text-white/20 tracking-[0.4em] uppercase font-bold">Verified Compatibility</span>
+                    <span className="text-[9px] font-mono text-white/20 tracking-[0.4em] uppercase font-bold">Verified compatibility</span>
                     <div className="h-[1px] flex-1 bg-white/5"></div>
                 </div>
                 <div className="flex flex-wrap justify-center gap-x-8 gap-y-4">
                     {executors.map((name) => (
                         <div key={name} className="flex items-center gap-2 group cursor-default">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary/20 group-hover:bg-primary group-hover:shadow-[0_0_10px_#ef4444] transition-all duration-300"></div>
-                            <span className="text-[11px] font-mono font-black text-white/40 group-hover:text-white transition-colors tracking-tighter uppercase">{name}</span>
+                            <div className="w-1 h-1 rounded-full bg-primary/40 group-hover:bg-primary transition-all duration-300"></div>
+                            <span className="text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tighter uppercase">{name}</span>
                         </div>
                     ))}
-                    <span className="text-[10px] font-mono text-white/10 italic self-center">& more</span>
                 </div>
             </motion.div>
         );
@@ -198,72 +192,39 @@
 
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
-        const [config, setConfig] = React.useState({ version: "LOADING...", status: "CHECKING...", statusColor: "gray" });
+        const [config, setConfig] = React.useState({ version: "v1.7.2", status: "ONLINE", statusColor: "green" });
         const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
 
         React.useEffect(() => {
-            const jsonUrl = `https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyl/refs/heads/main/status.json?t=${new Date().getTime()}`;
+            const jsonUrl = `https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json?t=${Date.now()}`;
             fetch(jsonUrl)
-                .then(res => res.ok ? res.json() : Promise.reject())
+                .then(res => res.json())
                 .then(data => setConfig(data))
-                .catch(() => setConfig({ version: "v1.7.2", status: "ONLINE", statusColor: "green" }));
+                .catch(() => console.log("Using local config defaults"));
         }, []);
 
-        const handleCopy = async () => {
-            try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(scriptText);
-                } else {
-                    const textArea = document.createElement("textarea");
-                    textArea.value = scriptText;
-                    textArea.style.position = "fixed"; textArea.style.left = "-9999px";
-                    document.body.appendChild(textArea);
-                    textArea.focus(); textArea.select();
-                    document.execCommand('copy');
-                    textArea.remove();
-                }
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            } catch (err) { console.error('Copy failed', err); }
+        const handleCopy = () => {
+            navigator.clipboard.writeText(scriptText);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         };
-
-        const dotColor = config.statusColor === "green" ? "bg-green-500" : config.statusColor === "red" ? "bg-red-500" : "bg-yellow-500";
-        const textColor = config.statusColor === "green" ? "text-green-500/80" : config.statusColor === "red" ? "text-red-500/80" : "text-yellow-500/80";
 
         return (
             <div className="flex flex-col items-center w-full">
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-lg bg-black/60 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md shadow-2xl mt-8">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-lg bg-black/40 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md mt-12 shadow-2xl">
                     <div className="flex items-center justify-between px-5 py-4 bg-white/5 border-b border-white/10">
-                        <div className="flex items-center gap-4">
-                            <div className="flex gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></div>
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></div>
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></div>
-                            </div>
-                            <span className="text-[10px] font-mono text-white/30 bg-white/5 px-2 py-0.5 rounded border border-white/5 uppercase tracking-tighter">{config.version}</span>
-                        </div>
+                        <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">{config.version}</span>
                         <div className="flex items-center gap-2">
-                            <span className="relative flex h-2 w-2">
-                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dotColor}`}></span>
-                                <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
-                            </span>
-                            <span className={`text-[10px] font-mono uppercase tracking-widest font-bold ${textColor}`}>{config.status}</span>
+                            <div className={`w-2 h-2 rounded-full ${config.statusColor === 'green' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                            <span className="text-[9px] font-bold text-white/40 uppercase">{config.status}</span>
                         </div>
                     </div>
-                    <div className="p-8">
-                        <div className="bg-black/40 rounded-xl p-5 mb-6 border border-white/5 group hover:border-primary/20 transition-all">
-                            <code className="block font-mono text-[10px] md:text-xs text-primary/90 break-all leading-relaxed uppercase">
-                                <span className="text-white/20 mr-2 select-none">$</span>{scriptText}
-                            </code>
+                    <div className="p-6">
+                        <div className="bg-black/60 rounded-xl p-4 mb-4 border border-white/5 overflow-x-auto">
+                            <code className="text-primary text-[11px] font-mono whitespace-nowrap lowercase italic">{scriptText}</code>
                         </div>
-                        <button onClick={handleCopy} className="relative w-full py-5 rounded-xl font-mono text-[10px] font-bold transition-all border border-primary/30 bg-primary/5 hover:bg-primary/20 text-white tracking-widest overflow-hidden active:scale-95 shadow-[0_0_20px_rgba(239,68,68,0.05)]">
-                            <AnimatePresence mode="wait">
-                                {copied ? (
-                                    <motion.div key="suc" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="absolute inset-0 flex items-center justify-center bg-primary text-black font-black uppercase tracking-tighter">Success! Copied to clipboard</motion.div>
-                                ) : (
-                                    <motion.span key="lab" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>CLICK TO COPY SCRIPT</motion.span>
-                                )}
-                            </AnimatePresence>
+                        <button onClick={handleCopy} className="w-full py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-xl font-black text-[10px] tracking-widest transition-all uppercase active:scale-95">
+                            {copied ? "Copied Successfully" : "Copy Official Script"}
                         </button>
                     </div>
                 </motion.div>
@@ -280,14 +241,14 @@
             let drops = [];
             const init = () => {
                 canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-                drops = Array.from({ length: 60 }, () => ({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, len: Math.random() * 20 + 10, vel: Math.random() * 12 + 6 }));
+                drops = Array.from({ length: 50 }, () => ({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, len: Math.random() * 20 + 5, vel: Math.random() * 10 + 5 }));
             };
             const draw = () => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1;
                 drops.forEach(d => {
                     ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x, d.y + d.len); ctx.stroke();
-                    d.y += d.vel; if (d.y > canvas.height) d.y = -30;
+                    d.y += d.vel; if (d.y > canvas.height) d.y = -20;
                 });
                 requestAnimationFrame(draw);
             };
@@ -298,33 +259,41 @@
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    const LinkButton = ({ href, iconClass, label }) => (
+    const LinkButton = ({ href, icon, label }) => (
         <a href={href} target="_blank" className="flex items-center gap-4 px-8 py-4 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.06] hover:border-primary/40 transition-all group backdrop-blur-sm">
-            <i className={`${iconClass} text-white/30 group-hover:text-primary transition-colors text-xl`}></i>
+            <i className={`${icon} text-white/30 group-hover:text-primary transition-colors text-xl`}></i>
             <span className="font-bold text-[13px] tracking-tight text-white/60 group-hover:text-white transition-colors">{label}</span>
         </a>
     );
 
     function Home() {
         return (
-            <div className="relative min-h-screen flex flex-col items-center justify-center bg-background px-8 py-20">
+            <div className="relative min-h-screen flex flex-col items-center justify-center bg-background px-6 overflow-hidden py-20">
                 <RainBackground />
                 <div className="scanline" />
                 <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.2 }} className="relative z-20 flex flex-col items-center w-full max-w-2xl">
-                    <motion.img src="logo.png" animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="w-40 h-40 md:w-48 md:h-48 object-contain mb-12 logo-glow" alt="rawr logo" />
+                
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }} className="relative z-20 flex flex-col items-center w-full max-w-2xl">
+                    <motion.img src="logo.png" animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="w-40 h-40 md:w-48 md:h-48 object-contain mb-12 logo-glow" alt="logo" />
+                    
                     <div className="text-center mb-14">
-                        <motion.h1 className="text-6xl md:text-8xl font-black font-mono text-white uppercase italic tracking-tighter">rawr<span className="text-primary tracking-normal">.xyz</span></motion.h1>
-                        <div className="mt-4 h-[2px] w-24 bg-gradient-to-r from-transparent via-primary to-transparent mx-auto opacity-50" />
+                        <h1 className="text-6xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase">rawr<span className="text-primary">.xyz</span></h1>
+                        <p className="text-white/20 font-mono text-[10px] tracking-[0.6em] mt-4 uppercase">elite performance execution</p>
                     </div>
+                    
                     <div className="flex flex-wrap justify-center gap-4">
-                        <LinkButton href="https://discord.com/invite/eMpUQzFrNG" iconClass="fa-brands fa-discord" label="Discord" />
-                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" iconClass="fa-brands fa-github" label="GitHub" />
-                        <LinkButton href="https://www.youtube.com/@rawr.xy3" iconClass="fa-brands fa-youtube" label="YouTube" />
+                        <LinkButton href="https://discord.com/invite/eMpUQzFrNG" icon="fa-brands fa-discord" label="Community" />
+                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
+                        <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="Showcase" />
                     </div>
+
                     <ScriptBlock />
                 </motion.div>
-                <footer className="mt-20 z-20 text-[10px] font-mono text-white/10 tracking-[0.8em] uppercase text-center select-none">rawr.xyz V1.5.1 // Elite Luau Performance</footer>
+
+                <footer className="mt-20 z-20 text-[10px] font-mono text-white/10 tracking-[0.8em] uppercase text-center select-none">
+                    rawr.xyz // Private Access // V1.5.1
+                </footer>
+                
                 <LiveChat />
             </div>
         );
