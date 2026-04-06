@@ -41,15 +41,32 @@ class TicketStatus(Enum):
     RESOLVED = "resolved"
     CLOSED = "closed"
 
+def safe_int_env(var_name: str, default: Optional[int] = None) -> Optional[int]:
+    """Safely convert environment variable to int"""
+    value = os.getenv(var_name)
+    if not value or value.strip() == '':
+        if default is not None:
+            logger.warning(f"{var_name} not set, using default: {default}")
+            return default
+        logger.warning(f"{var_name} not set, will be None")
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        logger.error(f"Invalid integer for {var_name}: {value}")
+        if default is not None:
+            return default
+        return None
+
 @dataclass
 class Config:
     """Centralized configuration"""
     token: str
     guild_id: int
-    ticket_category_id: int
-    owner_id: int
-    staff_role_id: int
-    manager_role_id: int
+    ticket_category_id: Optional[int]
+    owner_id: Optional[int]
+    staff_role_id: Optional[int]
+    manager_role_id: Optional[int]
     websocket_url: str
     website_url: str
     rate_limit_seconds: int = 5
@@ -63,17 +80,22 @@ class Config:
         if not token:
             raise ValueError("BOT_TOKEN environment variable not set")
         
-        guild_id = os.getenv('GUILD_ID')
-        if not guild_id:
+        guild_id_str = os.getenv('GUILD_ID')
+        if not guild_id_str:
             raise ValueError("GUILD_ID environment variable not set")
+        
+        try:
+            guild_id = int(guild_id_str)
+        except ValueError:
+            raise ValueError(f"GUILD_ID must be an integer, got: {guild_id_str}")
         
         return Config(
             token=token,
-            guild_id=int(guild_id),
-            ticket_category_id=int(os.getenv('TICKET_CATEGORY_ID', '1490508234526556321')),
-            owner_id=int(os.getenv('OWNER_ID', '1071330258172780594')),
-            staff_role_id=int(os.getenv('STAFF_ROLE_ID', '1489713077963456564')),
-            manager_role_id=int(os.getenv('MANAGER_ROLE_ID', '1489435265914109972')),
+            guild_id=guild_id,
+            ticket_category_id=safe_int_env('TICKET_CATEGORY_ID'),
+            owner_id=safe_int_env('OWNER_ID', 1071330258172780594),
+            staff_role_id=safe_int_env('STAFF_ROLE_ID'),
+            manager_role_id=safe_int_env('MANAGER_ROLE_ID'),
             websocket_url=os.getenv('WEBSOCKET_URL', 'ws://localhost:8765'),
             website_url=os.getenv('WEBSITE_URL', 'https://rawrs.zapto.org/'),
         )
@@ -114,21 +136,19 @@ class TicketManager:
     
     def __init__(self):
         self.tickets: Dict[int, Ticket] = {}
-        self.locked_users: Set[int] = set()  # Users creating tickets
+        self.locked_users: Set[int] = set()
         self.lock = asyncio.Lock()
-        self.message_log: Dict[int, deque] = {}  # Track messages per ticket
+        self.message_log: Dict[int, deque] = {}
     
     async def create(self, user_id: int, user_name: str, channel_id: int) -> Optional[Ticket]:
         """Create a new ticket with safety checks"""
         async with self.lock:
-            # Check if user already has an open ticket
             if user_id in self.tickets:
                 existing = self.tickets[user_id]
                 if existing.status in [TicketStatus.OPEN, TicketStatus.CLAIMED]:
                     logger.warning(f"User {user_name} already has ticket: {existing.channel_id}")
                     return existing
             
-            # Check if user is currently creating a ticket
             if user_id in self.locked_users:
                 logger.warning(f"User {user_name} already creating ticket")
                 return None
@@ -250,7 +270,7 @@ class RateLimiter:
         """Cleanup loop"""
         try:
             while True:
-                await asyncio.sleep(300)  # Every 5 minutes
+                await asyncio.sleep(300)
                 self._cleanup_old_data()
         except asyncio.CancelledError:
             logger.info("Rate limiter cleanup cancelled")
@@ -283,21 +303,18 @@ class RateLimiter:
         
         user_deque = self.user_messages[user_id]
         
-        # Check rate limit
         if len(user_deque) >= self.config.max_messages_per_minute:
             oldest = user_deque[0]
             if current_time - oldest < 60:
                 remaining = 60 - (current_time - oldest)
                 return False, f"Rate limited. Retry in {remaining:.0f}s"
         
-        # Check minimum interval
         if user_deque:
             time_since_last = current_time - user_deque[-1]
             if time_since_last < self.config.rate_limit_seconds:
                 wait_time = self.config.rate_limit_seconds - time_since_last
                 return False, f"Wait {wait_time:.1f}s before sending another message"
         
-        # Check duplicate
         message_hash = self._hash_message(user_id, message_content)
         if message_hash in self.message_hashes:
             return False, "Duplicate message detected"
@@ -464,38 +481,46 @@ class WebSocketManager:
     async def _process_web_chat(self, msg: Dict[str, Any]) -> None:
         """Process web chat message"""
         guild = self.bot.get_guild(self.config.guild_id)
-        category = self.bot.get_channel(self.config.ticket_category_id)
         
-        if not guild or not category:
-            logger.error("Missing guild or category")
+        if not guild:
+            logger.error(f"Guild {self.config.guild_id} not found")
             return
         
-        user_name = msg.get('user', 'unknown')
-        channel_name = f"web-{user_name.lower().replace(' ', '-')}"
-        
-        if channel_name not in self._web_channel_locks:
-            self._web_channel_locks[channel_name] = asyncio.Lock()
-        
-        async with self._web_channel_locks[channel_name]:
-            channel = discord.utils.get(category.text_channels, name=channel_name)
-            if not channel:
-                channel = await self._create_web_channel(guild, category, channel_name, user_name)
+        # Only create web channels if category ID is set
+        if self.config.ticket_category_id:
+            category = self.bot.get_channel(self.config.ticket_category_id)
+            if not category:
+                logger.error(f"Category {self.config.ticket_category_id} not found")
+                return
+            
+            user_name = msg.get('user', 'unknown')
+            channel_name = f"web-{user_name.lower().replace(' ', '-')}"
+            
+            if channel_name not in self._web_channel_locks:
+                self._web_channel_locks[channel_name] = asyncio.Lock()
+            
+            async with self._web_channel_locks[channel_name]:
+                channel = discord.utils.get(category.text_channels, name=channel_name)
                 if not channel:
-                    return
-        
-        embed = discord.Embed(
-            description=msg.get('text', ''),
-            color=0xef4444,
-            timestamp=datetime.utcnow()
-        )
-        embed.set_author(name=f"🌐 Web: {user_name}")
-        embed.set_footer(text=f"ID: {msg.get('id', 'unknown')[:8]}")
-        
-        try:
-            await channel.send(embed=embed)
-            logger.info(f"📨 Web message from {user_name}")
-        except Exception as e:
-            logger.error(f"Failed to send message: {e}")
+                    channel = await self._create_web_channel(guild, category, channel_name, user_name)
+                    if not channel:
+                        return
+            
+            embed = discord.Embed(
+                description=msg.get('text', ''),
+                color=0xef4444,
+                timestamp=datetime.utcnow()
+            )
+            embed.set_author(name=f"🌐 Web: {user_name}")
+            embed.set_footer(text=f"ID: {msg.get('id', 'unknown')[:8]}")
+            
+            try:
+                await channel.send(embed=embed)
+                logger.info(f"📨 Web message from {user_name}")
+            except Exception as e:
+                logger.error(f"Failed to send message: {e}")
+        else:
+            logger.info(f"Web message from {msg.get('user')}: {msg.get('text', '')[:50]} (no category set)")
     
     async def _create_web_channel(
         self,
@@ -656,226 +681,6 @@ class RawrBot(commands.Bot):
         else:
             logger.error(f"Command error: {error}", exc_info=True)
 
-# --- EVENT HANDLERS ---
-
-async def setup_events(bot: RawrBot) -> None:
-    """Register events"""
-    
-    @bot.event
-    async def on_ready() -> None:
-        """Bot ready"""
-        logger.info(f"✅ Logged in: {bot.user.name} ({bot.user.id})")
-        logger.info(f"Connected to {len(bot.guilds)} guilds")
-        
-        await bot.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.competing,
-                name="rawrs.zapto.org"
-            )
-        )
-    
-    @bot.event
-    async def on_message(message: discord.Message) -> None:
-        """Handle messages"""
-        if message.author == bot.user:
-            return
-        
-        if isinstance(message.channel, discord.DMChannel):
-            await handle_dm(bot, message)
-            return
-        
-        await bot.process_commands(message)
-
-async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
-    """Handle DM messages"""
-    user_id = message.author.id
-    
-    # Check rate limit
-    allowed, reason = bot.rate_limiter.can_send(user_id, message.content)
-    if not allowed:
-        try:
-            await message.author.send(f"❌ {reason}")
-        except Exception as e:
-            logger.error(f"Failed to send rate limit message: {e}")
-        return
-    
-    guild = bot.get_guild(bot.config.guild_id)
-    if not guild:
-        try:
-            await message.author.send("❌ Support system unavailable")
-        except Exception:
-            pass
-        return
-    
-    category = bot.get_channel(bot.config.ticket_category_id)
-    if not category:
-        try:
-            await message.author.send("❌ Support system unavailable")
-        except Exception:
-            pass
-        return
-    
-    # Check for existing ticket
-    existing_ticket = await bot.ticket_manager.get(user_id)
-    if existing_ticket:
-        logger.info(f"User {message.author.name} has existing ticket in channel {existing_ticket.channel_id}")
-        try:
-            await message.author.send(
-                f"📋 You already have an open support ticket! "
-                f"Please use that instead of creating a new one."
-            )
-        except Exception:
-            pass
-        return
-    
-    channel_name = f"ticket-{message.author.name.lower().replace(' ', '-')}"
-    
-    # Get or create channel
-    channel = discord.utils.get(category.text_channels, name=channel_name)
-    if not channel:
-        try:
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-                guild.get_role(bot.config.staff_role_id): discord.PermissionOverwrite(read_messages=True),
-            }
-            
-            channel = await guild.create_text_channel(
-                channel_name,
-                category=category,
-                overwrites=overwrites,
-                reason=f"Support ticket from {message.author.name}"
-            )
-            logger.info(f"✅ Created ticket channel: {channel_name}")
-        except Exception as e:
-            logger.error(f"Failed to create channel: {e}")
-            try:
-                await message.author.send("❌ Failed to create support ticket")
-            except Exception:
-                pass
-            return
-    
-    # Create ticket
-    ticket = await bot.ticket_manager.create(user_id, message.author.name, channel.id)
-    if not ticket:
-        logger.error(f"Failed to create ticket for {message.author.name}")
-        try:
-            await message.author.send("❌ Failed to create support ticket")
-        except Exception:
-            pass
-        return
-    
-    # Record rate limit
-    bot.rate_limiter.record_message(user_id, message.content)
-    await bot.ticket_manager.add_message(user_id)
-    
-    # Send confirmation to user
-    embed = discord.Embed(
-        title="🌐 RAWr.xyz Support",
-        description="Thanks for reaching out! Our support team will assist you shortly.\n\n"
-                   "For script updates and links, use `/updates` or visit **rawrs.zapto.org**",
-        color=0xef4444
-    )
-    embed.add_field(name="Status", value="⏳ Waiting for support staff...", inline=False)
-    embed.set_footer(text="Your support ticket has been created")
-    
-    try:
-        await message.author.send(embed=embed)
-    except Exception as e:
-        logger.error(f"Failed to send confirmation: {e}")
-    
-    # Send staff notification
-    staff_embed = discord.Embed(
-        title="📋 New Support Ticket",
-        description=f"**User:** {message.author.name} ({message.author.id})\n**Message:** {message.content}",
-        color=0x3b82f6,
-        timestamp=datetime.utcnow()
-    )
-    staff_embed.set_footer(text=f"Ticket ID: {user_id}")
-    
-    class ClaimButton(discord.ui.View):
-        def __init__(self, ticket_user_id: int):
-            super().__init__(timeout=None)
-            self.ticket_user_id = ticket_user_id
-            self.claimed = False
-        
-        @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.success, emoji="✋")
-        async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            """Claim ticket"""
-            if self.claimed:
-                await interaction.response.send_message("❌ This ticket already has been claimed", ephemeral=True)
-                return
-            
-            user_roles = {role.id for role in interaction.user.roles}
-            if bot.config.owner_id != interaction.user.id and not (
-                bot.config.staff_role_id in user_roles or bot.config.manager_role_id in user_roles
-            ):
-                await interaction.response.send_message("❌ You don't have permission to claim tickets", ephemeral=True)
-                return
-            
-            # Determine rank
-            if bot.config.manager_role_id in user_roles:
-                rank = "Manager"
-            elif bot.config.staff_role_id in user_roles:
-                rank = "Staff"
-            else:
-                rank = "Owner"
-            
-            # Claim ticket
-            ticket = await bot.ticket_manager.claim(
-                self.ticket_user_id,
-                interaction.user.id,
-                interaction.user.name,
-                rank
-            )
-            
-            if not ticket:
-                await interaction.response.send_message("❌ Ticket already claimed or closed", ephemeral=True)
-                return
-            
-            self.claimed = True
-            button.disabled = True
-            await interaction.message.edit(view=self)
-            
-            await interaction.response.send_message(
-                f"✅ Claimed! Channel: <#{ticket.channel_id}>",
-                ephemeral=True
-            )
-            
-            # Notify user
-            try:
-                user = await bot.fetch_user(self.ticket_user_id)
-                claim_embed = discord.Embed(
-                    title="✅ Support Staff Assigned",
-                    description=f"**Staff Member:** {interaction.user.name}\n**Rank:** {rank}\n\n"
-                               f"A staff member has claimed your ticket!",
-                    color=0x22c55e
-                )
-                claim_embed.add_field(name="What's Next?", value="They will respond to you shortly.", inline=False)
-                await user.send(embed=claim_embed)
-            except Exception as e:
-                logger.error(f"Failed to notify user: {e}")
-            
-            # Notify in channel
-            ticket_embed = discord.Embed(
-                title=f"✅ Claimed by {interaction.user.name}",
-                description=f"**Rank:** {rank}\n**Response Time:** Usually within minutes",
-                color=0x22c55e
-            )
-            
-            try:
-                ch = bot.get_channel(ticket.channel_id)
-                if ch:
-                    await ch.send(embed=ticket_embed)
-            except Exception as e:
-                logger.error(f"Failed to send to channel: {e}")
-    
-    try:
-        await channel.send(embed=staff_embed, view=ClaimButton(user_id))
-        logger.info(f"✅ Support ticket opened for {message.author.name}")
-    except Exception as e:
-        logger.error(f"Failed to send staff notification: {e}")
-
 # --- PERMISSION CHECKS ---
 
 def is_staff() -> app_commands.check:
@@ -883,8 +688,10 @@ def is_staff() -> app_commands.check:
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == interaction.client.config.owner_id:
             return True
+        if not interaction.client.config.staff_role_id:
+            return False
         user_roles = {role.id for role in interaction.user.roles}
-        return bool(user_roles & {interaction.client.config.staff_role_id, interaction.client.config.manager_role_id})
+        return bool(user_roles & {interaction.client.config.staff_role_id, interaction.client.config.manager_role_id or 0})
     return app_commands.check(predicate)
 
 def is_manager() -> app_commands.check:
@@ -892,190 +699,11 @@ def is_manager() -> app_commands.check:
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id == interaction.client.config.owner_id:
             return True
+        if not interaction.client.config.manager_role_id:
+            return False
         user_roles = {role.id for role in interaction.user.roles}
         return interaction.client.config.manager_role_id in user_roles
     return app_commands.check(predicate)
-
-# --- SLASH COMMANDS ---
-
-async def setup_commands(bot: RawrBot) -> None:
-    """Register commands"""
-    
-    @bot.tree.command(name="reply", description="Reply to a support ticket")
-    @is_staff()
-    async def reply(interaction: discord.Interaction, content: str) -> None:
-        """Reply to ticket"""
-        allowed, reason = bot.rate_limiter.can_send(interaction.user.id, content)
-        if not allowed:
-            await interaction.response.send_message(f"❌ {reason}", ephemeral=True)
-            return
-        
-        await interaction.response.defer()
-        
-        if not interaction.channel or not interaction.channel.name.startswith("ticket-"):
-            await interaction.followup.send("❌ Use in ticket channels only")
-            return
-        
-        bot.rate_limiter.record_message(interaction.user.id, content)
-        
-        message = {
-            "type": MessageType.REPLY.value,
-            "user": interaction.user.display_name,
-            "user_id": interaction.user.id,
-            "text": content,
-            "origin": MessageOrigin.DISCORD.value,
-        }
-        
-        success = await bot.ws_manager.send_message(message)
-        
-        embed = discord.Embed(
-            description=content,
-            color=0x00ff00,
-            timestamp=datetime.utcnow()
-        )
-        embed.set_author(name=f"💬 {interaction.user.display_name}")
-        embed.set_footer(text="Support Response")
-        
-        try:
-            await interaction.channel.send(embed=embed)
-        except Exception as e:
-            logger.error(f"Failed to send reply: {e}")
-        
-        await interaction.followup.send("✅ Reply sent!", ephemeral=True)
-        logger.info(f"Staff {interaction.user.name} replied")
-    
-    @bot.tree.command(name="close", description="Close a support ticket")
-    @is_manager()
-    async def close_ticket(interaction: discord.Interaction) -> None:
-        """Close ticket"""
-        if not interaction.channel or interaction.channel.category_id != bot.config.ticket_category_id:
-            await interaction.response.send_message("❌ Not a ticket channel", ephemeral=True)
-            return
-        
-        await interaction.response.send_message("🔒 Closing in 5s...")
-        await asyncio.sleep(5)
-        
-        channel_name = interaction.channel.name
-        try:
-            await interaction.channel.delete()
-            logger.info(f"✅ Closed ticket: {channel_name}")
-        except discord.Forbidden:
-            logger.error(f"Permission denied closing {channel_name}")
-            await interaction.followup.send("❌ Permission denied", ephemeral=True)
-    
-    @bot.tree.command(name="tickets", description="View active tickets")
-    @is_staff()
-    async def tickets(interaction: discord.Interaction) -> None:
-        """Show tickets"""
-        open_tickets = await bot.ticket_manager.get_all_open()
-        
-        if not open_tickets:
-            await interaction.response.send_message("📋 No open tickets", ephemeral=True)
-            return
-        
-        embed = discord.Embed(title=f"📋 Active Tickets ({len(open_tickets)})", color=0x3b82f6)
-        
-        for ticket in open_tickets:
-            status_emoji = "🔵" if ticket.status == TicketStatus.OPEN else "🟡"
-            claimed_by = ticket.claimed_by_name or "Unclaimed"
-            
-            embed.add_field(
-                name=f"{status_emoji} {ticket.user_name}",
-                value=f"Status: {ticket.status.value} | Claimed by: {claimed_by} | Messages: {ticket.message_count}",
-                inline=False
-            )
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @bot.tree.command(name="clear_cache", description="Clear rate limits")
-    @is_manager()
-    async def clear_cache(interaction: discord.Interaction, user_id: Optional[int] = None) -> None:
-        """Clear cache"""
-        if user_id:
-            bot.rate_limiter.clear_user(user_id)
-            msg = f"✅ Cleared cache for user {user_id}"
-        else:
-            bot.rate_limiter.clear_all()
-            msg = "✅ Cleared all caches"
-        
-        await interaction.response.send_message(msg, ephemeral=True)
-    
-    @bot.tree.command(name="stats", description="Show bot stats")
-    @is_staff()
-    async def stats(interaction: discord.Interaction) -> None:
-        """Show stats"""
-        uptime = datetime.utcnow() - bot.boot_time
-        days, remainder = divmod(int(uptime.total_seconds()), 86400)
-        hours, remainder = divmod(remainder, 3600)
-        minutes = remainder // 60
-        
-        ticket_stats = await bot.ticket_manager.get_stats()
-        ws_status = "✅ Connected" if bot.ws_manager.is_connected else "❌ Disconnected"
-        
-        embed = discord.Embed(title="📊 Bot Stats", color=0xef4444)
-        embed.add_field(name="⏰ Uptime", value=f"{days}d {hours}h {minutes}m", inline=True)
-        embed.add_field(name="⚡ Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
-        embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
-        embed.add_field(name="🔌 WebSocket", value=ws_status, inline=True)
-        embed.add_field(name="📋 Open Tickets", value=str(ticket_stats['open']), inline=True)
-        embed.add_field(name="🟡 Claimed Tickets", value=str(ticket_stats['claimed']), inline=True)
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @bot.tree.command(name="ping", description="Check latency")
-    async def ping(interaction: discord.Interaction) -> None:
-        """Check ping"""
-        latency_ms = round(bot.latency * 1000)
-        
-        if latency_ms < 100:
-            color, status = 0x00ff00, "🟢 Excellent"
-        elif latency_ms < 200:
-            color, status = 0xffaa00, "🟡 Good"
-        else:
-            color, status = 0xef4444, "🔴 Poor"
-        
-        embed = discord.Embed(title="🏓 Pong!", color=color)
-        embed.add_field(name="Latency", value=f"{latency_ms}ms", inline=True)
-        embed.add_field(name="Status", value=status, inline=True)
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @bot.tree.command(name="updates", description="Get latest updates")
-    async def updates(interaction: discord.Interaction) -> None:
-        """Show updates"""
-        embed = discord.Embed(title="📦 Latest Updates", color=0xef4444)
-        embed.add_field(
-            name="Script Updates",
-            value="Visit [GitHub](https://github.com/imcomingforyou6959-gif/rawr.xyz) for latest version",
-            inline=False
-        )
-        embed.add_field(
-            name="Support",
-            value=f"Visit [RAWr.xyz]({bot.config.website_url}) for help",
-            inline=False
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-# --- ERROR HANDLING ---
-
-async def setup_error_handlers(bot: RawrBot) -> None:
-    """Register error handlers"""
-    
-    @bot.tree.error
-    async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
-        """Handle errors"""
-        if isinstance(error, app_commands.CheckFailure):
-            msg = "⛔ Access denied: Staff/Manager role required"
-        elif isinstance(error, app_commands.CommandOnCooldown):
-            msg = f"⏰ Try again in {error.retry_after:.1f}s"
-        else:
-            logger.error(f"Command error: {error}", exc_info=True)
-            msg = "❌ An error occurred"
-        
-        if interaction.response.is_done():
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
 
 # --- MAIN ---
 
@@ -1084,10 +712,6 @@ async def main() -> None:
     try:
         config = Config.from_env()
         bot = RawrBot(config)
-        
-        await setup_events(bot)
-        await setup_commands(bot)
-        await setup_error_handlers(bot)
         
         logger.info("🚀 Starting bot...")
         async with bot:
