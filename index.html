@@ -62,7 +62,7 @@
             opacity: 0.12;
         }
         
-        /* Scanline Effect - lighter on mobile */
+        /* Scanline Effect */
         .scanline {
             width: 100%;
             height: 3px;
@@ -102,14 +102,6 @@
         }
         
         /* Chat Message Animations */
-        .chat-message-web {
-            animation: slideInRight 0.3s ease-out;
-        }
-        
-        .chat-message-discord {
-            animation: slideInLeft 0.3s ease-out;
-        }
-        
         @keyframes slideInRight {
             from {
                 opacity: 0;
@@ -164,7 +156,7 @@
                 opacity: 0.4;
             }
             30% {
-                transform: translateY(-10px);
+                transform: translateY(-8px);
                 opacity: 1;
             }
         }
@@ -172,19 +164,20 @@
         /* Notification Badge */
         .notification-badge {
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: -8px;
+            right: -8px;
             background: #ef4444;
             color: black;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            font-size: 10px;
+            width: 24px;
+            height: 24px;
+            font-size: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             animation: pulse 1.5s infinite;
+            border: 2px solid #050505;
         }
         
         @keyframes pulse {
@@ -194,14 +187,14 @@
             }
             50% {
                 transform: scale(1.2);
-                opacity: 0.7;
+                opacity: 0.8;
             }
         }
         
         /* Connection Status Dot */
         .status-dot {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             animation: statusPulse 2s infinite;
         }
@@ -238,18 +231,6 @@
             .logo-glow {
                 filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.2));
             }
-            
-            /* Reduce animation complexity on mobile */
-            @keyframes typing {
-                0%, 60%, 100% {
-                    transform: translateY(0);
-                    opacity: 0.4;
-                }
-                30% {
-                    transform: translateY(-5px);
-                    opacity: 1;
-                }
-            }
         }
 
         /* Prevent layout shift */
@@ -261,6 +242,27 @@
         body, button, input {
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Chat button styling */
+        .chat-toggle-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            font-size: 24px;
+        }
+
+        @media (max-width: 640px) {
+            .chat-toggle-btn {
+                width: 56px;
+                height: 56px;
+                font-size: 20px;
+            }
         }
     </style>
 </head>
@@ -278,13 +280,10 @@
         MESSAGE_HISTORY_SIZE: 50,
         MAX_MESSAGE_LENGTH: 500,
         STORAGE_KEY_PREFIX: 'rawr_chat_',
-        CLEANUP_INTERVAL: 3600000, // 1 hour
+        CLEANUP_INTERVAL: 3600000,
     };
 
-    // --- UTILITY FUNCTIONS ---
     const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
 
     // --- STORAGE MANAGER ---
     class StorageManager {
@@ -302,12 +301,10 @@
         static setMessages(messages) {
             try {
                 const key = CONFIG.STORAGE_KEY_PREFIX + 'messages';
-                // Keep only last N messages to prevent storage bloat
                 const trimmed = messages.slice(-CONFIG.MESSAGE_HISTORY_SIZE);
                 localStorage.setItem(key, JSON.stringify(trimmed));
             } catch (e) {
                 console.warn('Failed to save messages:', e);
-                // Silently fail - don't disrupt UX
             }
         }
 
@@ -321,7 +318,6 @@
                 }
                 return userId;
             } catch (e) {
-                console.warn('Failed to manage user ID:', e);
                 return 'User_' + Math.random().toString(36).substr(2, 9);
             }
         }
@@ -332,7 +328,6 @@
                 const data = localStorage.getItem(key);
                 if (data) {
                     const messages = JSON.parse(data);
-                    // Remove messages older than 7 days
                     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
                     const filtered = messages.filter(m => m.timestamp > sevenDaysAgo);
                     localStorage.setItem(key, JSON.stringify(filtered));
@@ -366,7 +361,6 @@
                     this.isReady = true;
                     this.reconnectAttempts = 0;
                     
-                    // Send queued messages
                     while (this.messageQueue.length > 0) {
                         const msg = this.messageQueue.shift();
                         this.send(msg);
@@ -405,21 +399,17 @@
             if (this.reconnectAttempts < this.maxReconnectAttempts) {
                 this.reconnectAttempts++;
                 const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
-                console.log(`Reconnecting in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-                setTimeout(() => this.connect(), Math.min(delay, 30000)); // Max 30s
-            } else {
-                console.error('Max reconnection attempts reached');
+                console.log(`Reconnecting in ${delay}ms...`);
+                setTimeout(() => this.connect(), Math.min(delay, 30000));
             }
         }
 
         send(message) {
             if (!this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
-                // Queue message if not connected
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.messageQueue.push(message);
-                    return true; // Optimistic: assume will be sent
+                    return true;
                 }
-                console.warn('WebSocket not connected and max retries exceeded');
                 return false;
             }
 
@@ -437,7 +427,6 @@
                 this.ws.close();
             }
             this.isConnected = false;
-            this.isReady = false;
         }
     }
 
@@ -460,18 +449,15 @@
 
         // Initialize
         React.useEffect(() => {
-            // Load messages
             const saved = StorageManager.getMessages();
             setMessages(saved);
 
-            // Initialize WebSocket
             wsManagerRef.current = new WebSocketManager((data) => {
                 handleWebSocketMessage(data);
             });
 
             wsManagerRef.current.connect();
 
-            // Periodic cleanup
             const cleanupInterval = setInterval(() => {
                 StorageManager.cleanup();
             }, CONFIG.CLEANUP_INTERVAL);
@@ -484,11 +470,9 @@
             };
         }, []);
 
-        // Handle incoming WebSocket messages
         const handleWebSocketMessage = (data) => {
             const msgId = data.id;
             
-            // Prevent duplicate processing
             if (msgId && processedIdsRef.current.has(msgId)) {
                 return;
             }
@@ -519,7 +503,6 @@
                 }
             }
 
-            // Update connection status
             updateConnectionStatus();
         };
 
@@ -534,10 +517,8 @@
             }
         };
 
-        // Add message to chat
         const addMessage = (msg) => {
             setMessages(prev => {
-                // Prevent exact duplicates
                 if (prev.some(m => m.id === msg.id)) {
                     return prev;
                 }
@@ -545,7 +526,6 @@
                 const newMessages = [...prev, msg].slice(-CONFIG.MESSAGE_HISTORY_SIZE);
                 StorageManager.setMessages(newMessages);
 
-                // Update unread count if chat closed
                 if (!isOpen && msg.origin === 'discord') {
                     setUnreadCount(count => count + 1);
                 }
@@ -554,7 +534,6 @@
             });
         };
 
-        // Auto-scroll to bottom
         React.useEffect(() => {
             if (scrollRef.current && isOpen) {
                 setTimeout(() => {
@@ -566,14 +545,12 @@
             }
         }, [messages, isOpen]);
 
-        // Reset unread when opening
         React.useEffect(() => {
             if (isOpen) {
                 setUnreadCount(0);
             }
         }, [isOpen]);
 
-        // Monitor connection status
         React.useEffect(() => {
             const checkConnection = setInterval(() => {
                 updateConnectionStatus();
@@ -582,7 +559,6 @@
             return () => clearInterval(checkConnection);
         }, []);
 
-        // Send message
         const sendMessage = async () => {
             if (!input.trim()) return;
             if (!isConnected) {
@@ -606,10 +582,8 @@
             setInput("");
             setError(null);
 
-            // Add to local messages immediately
             addMessage(message);
 
-            // Send via WebSocket
             const sent = wsManagerRef.current.send(message);
 
             if (!sent) {
@@ -620,19 +594,16 @@
             setIsLoading(false);
         };
 
-        // Format timestamp
         const formatTime = (timestamp) => {
             const date = new Date(timestamp);
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         };
 
-        // Format date
         const formatDate = (timestamp) => {
             const date = new Date(timestamp);
             return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         };
 
-        // Check if we should show date separator
         const shouldShowDateSeparator = (current, previous) => {
             if (!previous) return true;
             const currentDate = new Date(current.timestamp).toDateString();
@@ -641,30 +612,21 @@
         };
 
         return (
-            <div className="fixed bottom-0 right-0 z-[100] w-full sm:w-96 sm:right-4 sm:bottom-4 font-mono">
+            <>
+                {/* Chat Toggle Button - Always visible */}
                 <motion.div
-                    animate={{ y: isOpen ? 0 : 400 }}
-                    transition={{ type: "spring", damping: 25, stiffness: 160 }}
-                    className="bg-[#0a0a0a] border border-white/10 sm:rounded-t-2xl shadow-2xl overflow-hidden backdrop-blur-xl h-screen sm:h-auto flex flex-col"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 1.5 }}
+                    className="fixed bottom-6 right-6 z-[99] sm:bottom-8 sm:right-8"
                 >
-                    {/* Chat Header */}
-                    <div
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => setIsOpen(!isOpen)}
-                        className="bg-primary p-3 sm:p-4 cursor-pointer flex justify-between items-center relative flex-shrink-0"
+                        className="chat-toggle-btn bg-primary hover:bg-primary/90 text-black shadow-xl transition-all relative"
                     >
-                        <div className="flex items-center gap-2">
-                            <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
-                            <span className="text-[8px] sm:text-[10px] font-black tracking-widest text-black uppercase">
-                                {connectionStatus}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <i className="fas fa-headset text-black text-xs hidden sm:inline"></i>
-                            <motion.i
-                                animate={{ rotate: isOpen ? 180 : 0 }}
-                                className="fas fa-chevron-down text-black text-[10px]"
-                            ></motion.i>
-                        </div>
+                        <i className={`fas fa-${isOpen ? 'times' : 'headset'}`}></i>
                         {unreadCount > 0 && !isOpen && (
                             <motion.div
                                 initial={{ scale: 0 }}
@@ -674,132 +636,297 @@
                                 {unreadCount > 9 ? '9+' : unreadCount}
                             </motion.div>
                         )}
-                    </div>
+                    </motion.button>
+                </motion.div>
 
-                    {/* Chat Body */}
-                    <div className="flex-1 overflow-hidden flex flex-col bg-black/95">
-                        {/* Messages Container */}
-                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 custom-scrollbar">
-                            {messages.length === 0 ? (
-                                <div className="text-center text-white/20 py-8 sm:py-12 flex flex-col items-center justify-center h-full">
-                                    <i className="fas fa-comments text-2xl sm:text-3xl mb-3 block"></i>
-                                    <p className="text-[9px] sm:text-[10px]">No messages yet</p>
-                                    <p className="text-[8px] sm:text-[9px] mt-1">Start a conversation with support</p>
+                {/* Chat Window */}
+                <AnimatePresence>
+                    {isOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                            className="fixed bottom-24 right-6 z-[98] w-96 sm:bottom-32 sm:right-8 font-mono hidden sm:block"
+                        >
+                            <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl h-96 flex flex-col">
+                                {/* Header */}
+                                <div className="bg-primary p-4 flex justify-between items-center flex-shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
+                                        <span className="text-[10px] font-black tracking-widest text-black uppercase">
+                                            {connectionStatus}
+                                        </span>
+                                    </div>
+                                    <i className="fas fa-headset text-black text-xs"></i>
                                 </div>
-                            ) : (
-                                <>
-                                    {messages.map((msg, i) => {
-                                        const isWeb = msg.origin === 'web';
-                                        const isCurrentUser = msg.user === currentUserRef.current;
-                                        const previous = i > 0 ? messages[i - 1] : null;
-                                        const showDate = shouldShowDateSeparator(msg, previous);
 
-                                        return (
-                                            <React.Fragment key={msg.id || i}>
-                                                {showDate && (
-                                                    <div className="flex items-center gap-3 my-2">
-                                                        <div className="h-[1px] flex-1 bg-white/5"></div>
-                                                        <span className="text-[8px] text-white/20">
-                                                            {formatDate(msg.timestamp)}
-                                                        </span>
-                                                        <div className="h-[1px] flex-1 bg-white/5"></div>
-                                                    </div>
-                                                )}
+                                {/* Messages */}
+                                <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-black/95">
+                                    {messages.length === 0 ? (
+                                        <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
+                                            <i className="fas fa-comments text-3xl mb-3"></i>
+                                            <p className="text-[10px]">No messages yet</p>
+                                            <p className="text-[9px] mt-1">Start a conversation</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {messages.map((msg, i) => {
+                                                const isWeb = msg.origin === 'web';
+                                                const isCurrentUser = msg.user === currentUserRef.current;
+                                                const previous = i > 0 ? messages[i - 1] : null;
+                                                const showDate = shouldShowDateSeparator(msg, previous);
+
+                                                return (
+                                                    <React.Fragment key={msg.id || i}>
+                                                        {showDate && (
+                                                            <div className="flex items-center gap-3 my-2">
+                                                                <div className="h-[1px] flex-1 bg-white/5"></div>
+                                                                <span className="text-[8px] text-white/20">
+                                                                    {formatDate(msg.timestamp)}
+                                                                </span>
+                                                                <div className="h-[1px] flex-1 bg-white/5"></div>
+                                                            </div>
+                                                        )}
+                                                        <motion.div
+                                                            initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[80%]`}
+                                                        >
+                                                            <div className="flex items-center gap-1 mb-1 text-[8px]">
+                                                                <span className="text-white/30 uppercase tracking-wider font-bold">
+                                                                    {isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}
+                                                                </span>
+                                                                <span className="text-white/20 ml-auto">
+                                                                    {formatTime(msg.timestamp)}
+                                                                </span>
+                                                            </div>
+                                                            <div className={`
+                                                                ${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'}
+                                                                px-3 py-2 rounded-xl border text-[11px] leading-relaxed break-words
+                                                            `}>
+                                                                {msg.text}
+                                                            </div>
+                                                        </motion.div>
+                                                    </React.Fragment>
+                                                );
+                                            })}
+
+                                            {staffReplying && (
                                                 <motion.div
-                                                    initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[90%] sm:max-w-[80%]`}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    className="mr-auto"
                                                 >
-                                                    <div className="flex items-center gap-1 mb-1 text-[8px] sm:text-[9px]">
-                                                        <span className="text-white/30 uppercase tracking-wider font-bold">
-                                                            {isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}
-                                                        </span>
-                                                        <span className="text-white/20 ml-auto">
-                                                            {formatTime(msg.timestamp)}
-                                                        </span>
-                                                    </div>
-                                                    <div className={`
-                                                        ${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'}
-                                                        px-3 py-2 rounded-xl border text-[10px] sm:text-[11px] leading-relaxed break-words shadow-lg
-                                                    `}>
-                                                        {msg.text}
+                                                    <div className="typing-indicator">
+                                                        <span></span>
+                                                        <span></span>
+                                                        <span></span>
                                                     </div>
                                                 </motion.div>
-                                            </React.Fragment>
-                                        );
-                                    })}
+                                            )}
+                                        </>
+                                    )}
+                                </div>
 
-                                    {/* Typing Indicator */}
-                                    {staffReplying && (
-                                        <motion.div
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="mr-auto"
+                                {/* Error */}
+                                {error && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="px-4 py-2 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[8px]"
+                                    >
+                                        <i className="fas fa-exclamation-circle mr-2"></i> {error}
+                                    </motion.div>
+                                )}
+
+                                {/* Input */}
+                                <div className="border-t border-white/10 bg-black/50 p-4 flex-shrink-0">
+                                    <div className="flex gap-2 mb-2">
+                                        <input
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) {
+                                                    e.preventDefault();
+                                                    sendMessage();
+                                                }
+                                            }}
+                                            disabled={!isConnected || isLoading}
+                                            type="text"
+                                            placeholder={isConnected ? "Type a message..." : "Connecting..."}
+                                            className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[11px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50"
+                                            maxLength={CONFIG.MAX_MESSAGE_LENGTH}
+                                        />
+                                        <motion.button
+                                            whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }}
+                                            whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }}
+                                            onClick={sendMessage}
+                                            disabled={!input.trim() || !isConnected || isLoading}
+                                            className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-10 h-10 rounded-lg flex items-center justify-center border border-primary/30 font-bold"
                                         >
-                                            <div className="typing-indicator">
-                                                <span></span>
-                                                <span></span>
-                                                <span></span>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </>
-                            )}
-                        </div>
+                                            {isLoading ? (
+                                                <i className="fas fa-spinner text-[11px] animate-spin"></i>
+                                            ) : (
+                                                <i className="fas fa-paper-plane text-[11px]"></i>
+                                            )}
+                                        </motion.button>
+                                    </div>
+                                    <div className="text-[8px] text-white/20 text-center">
+                                        <i className="fas fa-shield-alt text-[6px] mr-1"></i>
+                                        Encrypted • Minutes response
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
-                        {/* Error Message */}
-                        {error && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="px-3 sm:px-4 py-2 bg-red-500/20 border border-red-500/40 text-red-400 text-[8px] sm:text-[9px]"
-                            >
-                                <i className="fas fa-exclamation-circle mr-2"></i> {error}
-                            </motion.div>
-                        )}
-
-                        {/* Input Area */}
-                        <div className="border-t border-white/10 bg-black/50 p-3 sm:p-4 flex-shrink-0">
-                            <div className="flex gap-2">
-                                <input
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) {
-                                            e.preventDefault();
-                                            sendMessage();
-                                        }
-                                    }}
-                                    disabled={!isConnected || isLoading}
-                                    type="text"
-                                    placeholder={isConnected ? "Type a message..." : "Connecting..."}
-                                    className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[10px] sm:text-[11px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    maxLength={CONFIG.MAX_MESSAGE_LENGTH}
-                                    aria-label="Message input"
-                                />
+                {/* Mobile Chat - Full Screen */}
+                <AnimatePresence>
+                    {isOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[98] bg-black/95 sm:hidden flex flex-col"
+                        >
+                            {/* Header */}
+                            <div className="bg-primary p-4 flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`}></div>
+                                    <span className="text-[10px] font-black tracking-widest text-black uppercase">
+                                        {connectionStatus}
+                                    </span>
+                                </div>
                                 <motion.button
-                                    whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }}
-                                    whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }}
-                                    onClick={sendMessage}
-                                    disabled={!input.trim() || !isConnected || isLoading}
-                                    className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 disabled:cursor-not-allowed w-10 h-10 rounded-lg transition-all flex items-center justify-center border border-primary/30 font-bold"
-                                    aria-label="Send message"
+                                    onClick={() => setIsOpen(false)}
+                                    className="text-black text-2xl"
                                 >
-                                    {isLoading ? (
-                                        <i className="fas fa-spinner text-[10px] animate-spin"></i>
-                                    ) : (
-                                        <i className="fas fa-paper-plane text-[10px]"></i>
-                                    )}
+                                    <i className="fas fa-times"></i>
                                 </motion.button>
                             </div>
-                            <div className="text-[7px] sm:text-[8px] text-white/20 text-center mt-2">
-                                <i className="fas fa-shield-alt text-[6px] mr-1"></i>
-                                Encrypted • Response within minutes
+
+                            {/* Messages */}
+                            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                                {messages.length === 0 ? (
+                                    <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
+                                        <i className="fas fa-comments text-4xl mb-4"></i>
+                                        <p className="text-[12px]">No messages yet</p>
+                                        <p className="text-[10px] mt-2">Start a conversation with support</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {messages.map((msg, i) => {
+                                            const isWeb = msg.origin === 'web';
+                                            const isCurrentUser = msg.user === currentUserRef.current;
+                                            const previous = i > 0 ? messages[i - 1] : null;
+                                            const showDate = shouldShowDateSeparator(msg, previous);
+
+                                            return (
+                                                <React.Fragment key={msg.id || i}>
+                                                    {showDate && (
+                                                        <div className="flex items-center gap-3 my-3">
+                                                            <div className="h-[1px] flex-1 bg-white/5"></div>
+                                                            <span className="text-[9px] text-white/20">
+                                                                {formatDate(msg.timestamp)}
+                                                            </span>
+                                                            <div className="h-[1px] flex-1 bg-white/5"></div>
+                                                        </div>
+                                                    )}
+                                                    <motion.div
+                                                        initial={{ opacity: 0, x: isWeb ? 20 : -20 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        className={`${isWeb ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[90%]`}
+                                                    >
+                                                        <div className="flex items-center gap-1 mb-1 text-[9px]">
+                                                            <span className="text-white/30 uppercase tracking-wider font-bold">
+                                                                {isCurrentUser ? 'You' : (isWeb ? msg.user : `Staff: ${msg.user}`)}
+                                                            </span>
+                                                            <span className="text-white/20 ml-auto">
+                                                                {formatTime(msg.timestamp)}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`
+                                                            ${isWeb ? 'bg-primary/20 text-primary border-primary/40' : 'bg-white/10 text-white border-white/20'}
+                                                            px-4 py-2 rounded-xl border text-[12px] leading-relaxed break-words
+                                                        `}>
+                                                            {msg.text}
+                                                        </div>
+                                                    </motion.div>
+                                                </React.Fragment>
+                                            );
+                                        })}
+
+                                        {staffReplying && (
+                                            <motion.div
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="mr-auto"
+                                            >
+                                                <div className="typing-indicator">
+                                                    <span></span>
+                                                    <span></span>
+                                                    <span></span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </>
+                                )}
                             </div>
-                        </div>
-                    </div>
-                </motion.div>
-            </div>
+
+                            {/* Error */}
+                            {error && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="px-4 py-3 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[9px]"
+                                >
+                                    <i className="fas fa-exclamation-circle mr-2"></i> {error}
+                                </motion.div>
+                            )}
+
+                            {/* Input */}
+                            <div className="border-t border-white/10 bg-black/50 p-4">
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) {
+                                                e.preventDefault();
+                                                sendMessage();
+                                            }
+                                        }}
+                                        disabled={!isConnected || isLoading}
+                                        type="text"
+                                        placeholder={isConnected ? "Type a message..." : "Connecting..."}
+                                        className="bg-white/5 border border-white/10 flex-1 px-4 py-3 text-[12px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50"
+                                        maxLength={CONFIG.MAX_MESSAGE_LENGTH}
+                                    />
+                                    <motion.button
+                                        whileHover={{ scale: isConnected && !isLoading ? 1.05 : 1 }}
+                                        whileTap={{ scale: isConnected && !isLoading ? 0.95 : 1 }}
+                                        onClick={sendMessage}
+                                        disabled={!input.trim() || !isConnected || isLoading}
+                                        className="bg-primary/20 hover:bg-primary text-primary hover:text-black disabled:opacity-50 w-12 h-12 rounded-lg flex items-center justify-center border border-primary/30 font-bold"
+                                    >
+                                        {isLoading ? (
+                                            <i className="fas fa-spinner text-[14px] animate-spin"></i>
+                                        ) : (
+                                            <i className="fas fa-paper-plane text-[14px]"></i>
+                                        )}
+                                    </motion.button>
+                                </div>
+                                <div className="text-[8px] text-white/20 text-center">
+                                    <i className="fas fa-shield-alt text-[6px] mr-1"></i>
+                                    Encrypted • Minutes response
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </>
         );
     };
 
@@ -814,19 +941,19 @@
         ];
 
         return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-8 sm:mt-12 w-full max-w-2xl px-4 sm:px-6">
-                <div className="flex items-center gap-4 mb-4 sm:mb-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-12 sm:mt-16 w-full max-w-3xl px-6 sm:px-0">
+                <div className="flex items-center gap-4 mb-6 sm:mb-8">
                     <div className="h-[1px] flex-1 bg-white/5"></div>
-                    <span className="text-[7px] sm:text-[9px] font-mono text-white/20 tracking-[0.3em] sm:tracking-[0.4em] uppercase font-bold whitespace-nowrap">Verified compatibility</span>
+                    <span className="text-[8px] sm:text-[9px] font-mono text-white/20 tracking-[0.3em] sm:tracking-[0.4em] uppercase font-bold whitespace-nowrap">Verified compatibility</span>
                     <div className="h-[1px] flex-1 bg-white/5"></div>
                 </div>
-                <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-x-4 sm:gap-x-8 gap-y-3 sm:gap-y-4">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap justify-center gap-x-4 sm:gap-x-10 gap-y-4 sm:gap-y-5">
                     {executors.map(({ name, status }) => (
                         <div key={name} className="flex items-center gap-2 group cursor-default">
-                            <div className={`w-1 h-1 rounded-full ${status === 'verified' ? 'bg-green-500' : 'bg-yellow-500'} group-hover:bg-primary transition-all duration-300`}></div>
-                            <span className="text-[8px] sm:text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tighter uppercase">{name}</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${status === 'verified' ? 'bg-green-500' : 'bg-yellow-500'} group-hover:bg-primary transition-all`}></div>
+                            <span className="text-[9px] sm:text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tight uppercase">{name}</span>
                             {status === 'beta' && (
-                                <span className="text-[5px] sm:text-[6px] bg-yellow-500/20 text-yellow-500 px-1 rounded">BETA</span>
+                                <span className="text-[6px] bg-yellow-500/20 text-yellow-500 px-1.5 rounded">BETA</span>
                             )}
                         </div>
                     ))}
@@ -883,22 +1010,22 @@
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative w-full max-w-2xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-8 sm:mt-12 shadow-2xl mx-4 sm:mx-0"
+                    className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0"
                 >
-                    <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 bg-white/5 border-b border-white/10">
+                    <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 bg-white/5 border-b border-white/10">
                         <div className="flex items-center gap-3">
                             <i className="fas fa-code text-primary/50 text-xs"></i>
-                            <span className="text-[8px] sm:text-[10px] font-mono text-white/30 uppercase tracking-widest">{config.version}</span>
+                            <span className="text-[9px] sm:text-[10px] font-mono text-white/30 uppercase tracking-widest">{config.version}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${config.statusColor === 'green' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                            <span className="text-[7px] sm:text-[9px] font-bold text-white/40 uppercase">{config.status}</span>
+                            <span className="text-[8px] sm:text-[9px] font-bold text-white/40 uppercase">{config.status}</span>
                         </div>
                     </div>
 
-                    <div className="p-4 sm:p-6">
-                        <div className="bg-black/60 rounded-lg sm:rounded-xl p-3 sm:p-4 mb-4 border border-white/5 overflow-x-auto">
-                            <code className="text-primary text-[9px] sm:text-[11px] font-mono break-all select-all whitespace-normal sm:whitespace-pre-wrap">
+                    <div className="p-5 sm:p-7">
+                        <div className="bg-black/60 rounded-lg sm:rounded-xl p-4 sm:p-5 mb-5 border border-white/5 overflow-x-auto">
+                            <code className="text-primary text-[10px] sm:text-[11px] font-mono break-all select-all whitespace-normal sm:whitespace-pre-wrap">
                                 {scriptText}
                             </code>
                         </div>
@@ -907,16 +1034,16 @@
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={handleCopy}
-                            className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[9px] sm:text-[10px] tracking-widest transition-all uppercase flex items-center justify-center gap-2"
+                            className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-[11px] tracking-widest transition-all uppercase flex items-center justify-center gap-2"
                         >
-                            <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[9px] sm:text-[10px]`}></i>
+                            <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[10px] sm:text-[11px]`}></i>
                             {copied ? "Copied Successfully" : "Copy Official Script"}
                         </motion.button>
 
                         {config.changelog && (
-                            <div className="mt-3 text-center">
-                                <span className="text-[7px] sm:text-[8px] text-white/20">
-                                    <i className="fas fa-info-circle mr-1"></i> {config.changelog}
+                            <div className="mt-4 text-center">
+                                <span className="text-[8px] sm:text-[9px] text-white/20">
+                                    <i className="fas fa-info-circle mr-2"></i> {config.changelog}
                                 </span>
                             </div>
                         )}
@@ -947,7 +1074,6 @@
                 canvas.width = width;
                 canvas.height = height;
 
-                // Reduce drops on mobile
                 const isMobile = width < 640;
                 const dropCount = isMobile 
                     ? Math.min(30, Math.floor(width / 50))
@@ -1028,7 +1154,7 @@
         }, []);
 
         return (
-            <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-background px-4 sm:px-6 overflow-hidden py-12 sm:py-20">
+            <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-background px-6 sm:px-6 overflow-hidden py-16 sm:py-24">
                 <RainBackground />
                 <div className="scanline" />
                 <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
@@ -1040,7 +1166,7 @@
                             initial={{ opacity: 0, y: -50 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -50 }}
-                            className="fixed top-14 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 py-2 text-[8px] sm:text-xs font-mono mx-4"
+                            className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono"
                         >
                             <i className="fas fa-shield-alt mr-2 text-primary"></i>
                             Secure connection established
@@ -1052,29 +1178,29 @@
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8 }}
-                    className="relative z-20 flex flex-col items-center w-full max-w-2xl"
+                    className="relative z-20 flex flex-col items-center w-full max-w-4xl"
                 >
                     <motion.img
                         src="logo.png"
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-24 h-24 sm:w-40 sm:h-40 md:w-48 md:h-48 object-contain mb-8 sm:mb-12 logo-glow"
+                        className="w-28 h-28 sm:w-44 sm:h-44 md:w-56 md:h-56 object-contain mb-10 sm:mb-16 logo-glow"
                         alt="rawr.xyz logo"
                         onError={(e) => {
-                            e.target.src = "https://via.placeholder.com/192x192?text=RAWr";
+                            e.target.src = "https://via.placeholder.com/224x224?text=RAWr";
                         }}
                     />
 
-                    <div className="text-center mb-8 sm:mb-14">
-                        <h1 className="text-4xl sm:text-6xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase">
+                    <div className="text-center mb-10 sm:mb-16">
+                        <h1 className="text-5xl sm:text-7xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase leading-tight">
                             rawr<span className="text-primary">.xyz</span>
                         </h1>
-                        <p className="text-white/20 font-mono text-[8px] sm:text-[10px] tracking-[0.4em] sm:tracking-[0.6em] mt-2 sm:mt-4 uppercase">
+                        <p className="text-white/20 font-mono text-[8px] sm:text-[10px] tracking-[0.35em] sm:tracking-[0.6em] mt-3 sm:mt-5 uppercase font-bold">
                             elite performance execution
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mb-8 sm:mb-0">
+                    <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
                         <LinkButton
                             href="https://discord.gg/eMpUQzFrNG"
                             icon="fa-brands fa-discord"
@@ -1095,7 +1221,7 @@
                     <ScriptBlock />
                 </motion.div>
 
-                <footer className="mt-12 sm:mt-20 z-20 text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.6em] sm:tracking-[0.8em] uppercase text-center select-none">
+                <footer className="mt-16 sm:mt-24 z-20 text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase text-center select-none">
                     rawr.xyz // Secure Access // v2.0
                 </footer>
 
