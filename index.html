@@ -57,15 +57,118 @@
         .scanline { width: 100%; height: 3px; background: linear-gradient(to bottom, transparent, rgba(239, 68, 68, 0.08), transparent); position: fixed; z-index: 5; top: 0; animation: scan 6s linear infinite; }
         @keyframes scan { 0% { top: -10%; } 100% { top: 110%; } }
         .logo-glow { filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.3)); }
-        ::-webkit-scrollbar { display: none; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
     </style>
 </head>
 <body>
 <div id="root"></div>
 
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    
+    // Config for React to use
+    window.firebaseConfig = {
+        databaseURL: "https://rawr-chat-default-rtdb.firebaseio.com/",
+        projectId: "rawr-chat"
+    };
+    window.firebaseApp = initializeApp(window.firebaseConfig);
+    window.firebaseDb = getDatabase(window.firebaseApp);
+</script>
+
 <script type="text/babel">
     const { motion, AnimatePresence } = window.Motion;
 
+    // --- CHAT COMPONENT ---
+    const LiveChat = () => {
+        const [isOpen, setIsOpen] = React.useState(false);
+        const [messages, setMessages] = React.useState([]);
+        const [input, setInput] = React.useState("");
+        const scrollRef = React.useRef(null);
+
+        React.useEffect(() => {
+            const chatRef = window.React.version ? null : null; // Logic check
+            const dbRef = window.parent.firebaseDb ? window.parent.firebaseDb : window.firebaseDb;
+            
+            if (dbRef) {
+                const { ref, onChildAdded } = window.parent.FirebaseDatabase || {};
+                // Since we are in Babel/React, we access the global Firebase from the module script
+                const messagesRef = window.parent.FirebaseDatabase ? 
+                    window.parent.FirebaseDatabase.ref(dbRef, 'messages') : null;
+            }
+            
+            // Simplified Listener for React Integration
+            const fetchChat = async () => {
+                const { getDatabase, ref, onChildAdded } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+                const chatRef = ref(window.firebaseDb, 'messages');
+                onChildAdded(chatRef, (snapshot) => {
+                    setMessages(prev => [...prev, snapshot.val()]);
+                });
+            };
+            fetchChat();
+        }, []);
+
+        React.useEffect(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }, [messages]);
+
+        const sendMessage = async () => {
+            if (!input.trim()) return;
+            const { ref, push } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+            push(ref(window.firebaseDb, 'messages'), {
+                user: "Guest_" + Math.floor(Math.random() * 1000),
+                text: input,
+                timestamp: Date.now(),
+                origin: "web"
+            });
+            setInput("");
+        };
+
+        return (
+            <div className="fixed bottom-0 right-8 z-[100] w-80 font-mono">
+                <motion.div 
+                    animate={{ y: isOpen ? 0 : 350 }} 
+                    transition={{ type: "spring", damping: 20 }}
+                    className="bg-[#0a0a0a] border border-white/10 rounded-t-2xl shadow-2xl overflow-hidden"
+                >
+                    <div onClick={() => setIsOpen(!isOpen)} className="bg-primary p-4 cursor-pointer flex justify-between items-center">
+                        <span className="text-[10px] font-black tracking-widest text-black">LIVE SUPPORT</span>
+                        <i className={`fas fa-chevron-${isOpen ? 'down' : 'up'} text-black text-xs`}></i>
+                    </div>
+                    
+                    <div className="h-[340px] flex flex-col">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {messages.map((msg, i) => (
+                                <div key={i} className={`${msg.origin === 'web' ? 'ml-auto text-right' : 'mr-auto text-left'} max-w-[85%]`}>
+                                    <span className="text-[8px] text-white/20 block uppercase mb-1">{msg.user}</span>
+                                    <div className={`${msg.origin === 'web' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white/5 text-white border-white/10'} px-3 py-2 rounded-xl border text-[11px]`}>
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-3 border-t border-white/5 bg-black/40 flex gap-2">
+                            <input 
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                                type="text" 
+                                placeholder="Type message..." 
+                                className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[10px] focus:outline-none focus:border-primary/40 rounded-lg"
+                            />
+                            <button onClick={sendMessage} className="text-primary hover:text-white p-2">
+                                <i className="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    };
+
+    // --- YOUR ORIGINAL COMPONENTS ---
     const CompatibilityBar = () => {
         const executors = ["Xeno", "Velocity", "Solara", "Wave", "Sirhurt"];
         return (
@@ -217,6 +320,7 @@
                     <ScriptBlock />
                 </motion.div>
                 <footer className="mt-20 z-20 text-[10px] font-mono text-white/10 tracking-[0.8em] uppercase text-center select-none">rawr.xyz V1.5.1 // Made with passion</footer>
+                <LiveChat />
             </div>
         );
     }
