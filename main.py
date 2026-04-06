@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger('RawrBot')
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION FROM GITHUB SECRETS ---
 TOKEN = os.getenv('BOT_TOKEN')
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
@@ -28,24 +28,28 @@ if not GUILD_ID_INT:
 
 GUILD_ID = discord.Object(id=GUILD_ID_INT)
 
-# Permissions & IDs
-OWNER_ID = 1071330258172780594
-STAFF_ROLE_ID = 1489713077963456564
-MANAGER_ROLE_ID = 1489435265914109972
-TICKET_CATEGORY_ID = 1490508234526556321  # <-- UPDATE THIS WITH YOUR CATEGORY ID
+# Optional: Get category ID from secrets or use default
+TICKET_CATEGORY_ID = int(os.getenv('TICKET_CATEGORY_ID', '1490508234526556321'))
 
-# URLs
-WEBSITE_URL = "https://rawrs.zapto.org/"
-CHAT_URL = "https://rawr-chat-default-rtdb.firebaseio.com/messages.json"
-STATUS_JSON_URL = "https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json"
+# Permissions & IDs (can also be moved to secrets if needed)
+OWNER_ID = int(os.getenv('OWNER_ID', '1071330258172780594'))
+STAFF_ROLE_ID = int(os.getenv('STAFF_ROLE_ID', '1489713077963456564'))
+MANAGER_ROLE_ID = int(os.getenv('MANAGER_ROLE_ID', '1489435265914109972'))
 
-# Constants
-MESSAGE_FETCH_INTERVAL = 3  # seconds
-CLOSE_DELAY_SECONDS = 5
-MAX_RETRIES = 3
-RETRY_DELAY = 1  # seconds
-PROCESSED_IDS_FILE = "processed_msg_ids.json"  # File to persist processed IDs
-MAX_STORED_IDS = 2000  # Maximum number of message IDs to store
+# URLs (can be configured via secrets)
+WEBSITE_URL = os.getenv('WEBSITE_URL', 'https://rawrs.zapto.org/')
+CHAT_URL = os.getenv('CHAT_URL', 'https://rawr-chat-default-rtdb.firebaseio.com/messages.json')
+STATUS_JSON_URL = os.getenv('STATUS_JSON_URL', 'https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json')
+
+# Constants (can be configured via secrets)
+MESSAGE_FETCH_INTERVAL = int(os.getenv('MESSAGE_FETCH_INTERVAL', '3'))
+CLOSE_DELAY_SECONDS = int(os.getenv('CLOSE_DELAY_SECONDS', '5'))
+MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
+RETRY_DELAY = int(os.getenv('RETRY_DELAY', '1'))
+MAX_STORED_IDS = int(os.getenv('MAX_STORED_IDS', '2000'))
+
+# File for persistent storage (will be in /tmp for ephemeral storage on some platforms)
+PROCESSED_IDS_FILE = os.getenv('PROCESSED_IDS_FILE', 'processed_msg_ids.json')
 
 class PermissionChecker:
     """Centralized permission checking"""
@@ -186,8 +190,10 @@ class RawrBot(commands.Bot):
         self.check_live_chat.start()
         self.save_processed_ids_task.start()
         self.cleanup_old_ids_task.start()
+        self.keep_alive_task.start()  # For 24/7 hosting
         
         logger.info("Bot setup completed")
+        logger.info(f"Bot is running in guild: {GUILD_ID_INT}")
     
     async def close(self):
         """Cleanup when bot closes"""
@@ -202,6 +208,7 @@ class RawrBot(commands.Bot):
         self.check_live_chat.cancel()
         self.save_processed_ids_task.cancel()
         self.cleanup_old_ids_task.cancel()
+        self.keep_alive_task.cancel()
         
         await super().close()
         logger.info("Bot closed successfully")
@@ -220,6 +227,18 @@ class RawrBot(commands.Bot):
             self.processed_msg_ids = set(list(self.processed_msg_ids)[-MAX_STORED_IDS:])
             logger.info(f"Cleaned up old processed IDs: {old_count} -> {len(self.processed_msg_ids)}")
             self.save_processed_ids()
+    
+    @tasks.loop(minutes=30)  # Keep alive for 24/7 hosting
+    async def keep_alive_task(self):
+        """Keep the bot active on 24/7 hosting platforms"""
+        logger.debug("Keep-alive signal sent")
+        # Update presence occasionally to show activity
+        await self.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.competing,
+                name=f"{len(self.guilds)} servers | /help"
+            )
+        )
     
     async def send_web_reply(self, user: str, content: str, staff_name: str) -> bool:
         """Send a reply to the web chat"""
@@ -276,7 +295,6 @@ class RawrBot(commands.Bot):
         """Process an individual web message"""
         # Skip if already processed (using persistent storage)
         if msg_id in self.processed_msg_ids:
-            logger.debug(f"Skipping already processed message: {msg_id}")
             return
         
         # Skip non-web messages
@@ -288,7 +306,6 @@ class RawrBot(commands.Bot):
         msg_ts = msg.get('timestamp', 0)
         if msg_ts < self.boot_time:
             self.processed_msg_ids.add(msg_id)
-            logger.debug(f"Skipping historical message from before bot start: {msg_id}")
             return
         
         # Mark as processed immediately to prevent duplicates
@@ -310,7 +327,6 @@ class RawrBot(commands.Bot):
         )
         
         if not channel:
-            logger.error(f"Failed to create or get channel: {channel_name}")
             return
         
         embed = discord.Embed(
@@ -323,9 +339,9 @@ class RawrBot(commands.Bot):
         
         try:
             await channel.send(embed=embed)
-            logger.info(f"Forwarded web message from {msg['user']} to {channel_name} (ID: {msg_id[:8]})")
+            logger.info(f"Forwarded web message from {msg['user']} to {channel_name}")
         except discord.Forbidden:
-            logger.error(f"Cannot send message to channel {channel_name} - missing permissions")
+            logger.error(f"Cannot send message to channel {channel_name}")
         except Exception as e:
             logger.error(f"Failed to send message to channel: {e}")
 
@@ -341,12 +357,17 @@ async def on_ready():
     logger.info(f"Connected to {len(bot.guilds)} guilds")
     logger.info(f"Loaded {len(bot.processed_msg_ids)} cached message IDs")
     
+    # Set initial presence
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.competing, 
             name="rawrs.zapto.org"
         )
     )
+    
+    # Log guild information
+    for guild in bot.guilds:
+        logger.info(f"Guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -628,6 +649,7 @@ async def on_app_command_error(
 if __name__ == "__main__":
     try:
         logger.info("Starting Rawr.xyz Discord Bot...")
+        logger.info(f"Configuration loaded from environment variables")
         bot.run(TOKEN)
     except discord.LoginFailure:
         logger.error("Invalid bot token. Please check your BOT_TOKEN environment variable.")
