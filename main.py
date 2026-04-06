@@ -1,14 +1,16 @@
 import os
-import aiohttp
 import discord
 import asyncio
-import time
 import logging
 import json
-from typing import Optional, Dict, Set, Any
-from datetime import datetime
+import time
+import hashlib
+from typing import Optional, Set, Dict, Any
+from datetime import datetime, timedelta
 from discord import app_commands
 from discord.ext import commands, tasks
+import websockets
+from collections import deque
 
 # --- LOGGING CONFIGURATION ---
 logging.basicConfig(
@@ -17,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger('RawrBot')
 
-# --- CONFIGURATION FROM GITHUB SECRETS ---
+# --- CONFIGURATION FROM ENVIRONMENT ---
 TOKEN = os.getenv('BOT_TOKEN')
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
@@ -28,106 +30,273 @@ if not GUILD_ID_INT:
 
 GUILD_ID = discord.Object(id=GUILD_ID_INT)
 
-# Optional: Get category ID from secrets or use default
+# Discord Configuration
 TICKET_CATEGORY_ID = int(os.getenv('TICKET_CATEGORY_ID', '1490508234526556321'))
-
-# Permissions & IDs (can also be moved to secrets if needed)
 OWNER_ID = int(os.getenv('OWNER_ID', '1071330258172780594'))
 STAFF_ROLE_ID = int(os.getenv('STAFF_ROLE_ID', '1489713077963456564'))
 MANAGER_ROLE_ID = int(os.getenv('MANAGER_ROLE_ID', '1489435265914109972'))
 
-# URLs (can be configured via secrets)
+# WebSocket Configuration
+WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', 'ws://localhost:8765')
 WEBSITE_URL = os.getenv('WEBSITE_URL', 'https://rawrs.zapto.org/')
-CHAT_URL = os.getenv('CHAT_URL', 'https://rawr-chat-default-rtdb.firebaseio.com/messages.json')
-STATUS_JSON_URL = os.getenv('STATUS_JSON_URL', 'https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/main/status.json')
 
-# Constants (can be configured via secrets)
-MESSAGE_FETCH_INTERVAL = int(os.getenv('MESSAGE_FETCH_INTERVAL', '3'))
-CLOSE_DELAY_SECONDS = int(os.getenv('CLOSE_DELAY_SECONDS', '5'))
-MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
-RETRY_DELAY = int(os.getenv('RETRY_DELAY', '1'))
-MAX_STORED_IDS = int(os.getenv('MAX_STORED_IDS', '2000'))
+# Rate Limiting Configuration
+RATE_LIMIT_SECONDS = 5  # One message per 5 seconds
+MAX_MESSAGES_PER_MINUTE = 12  # Maximum 12 messages per minute
+MESSAGE_CACHE_SIZE = 100  # Store last 100 messages for duplicate detection
+DUPLICATE_WINDOW_SECONDS = 30  # Check for duplicates within 30 seconds
 
-# File for persistent storage (will be in /tmp for ephemeral storage on some platforms)
-PROCESSED_IDS_FILE = os.getenv('PROCESSED_IDS_FILE', 'processed_msg_ids.json')
-
-class PermissionChecker:
-    """Centralized permission checking"""
+class RateLimiter:
+    """Rate limiting manager to prevent message spam"""
     
-    @staticmethod
-    def is_staff():
-        """Check if user is Owner, Manager, or Staff"""
-        async def predicate(interaction: discord.Interaction) -> bool:
-            if interaction.user.id == OWNER_ID:
-                return True
-            
-            user_roles = {role.id for role in interaction.user.roles}
-            return STAFF_ROLE_ID in user_roles or MANAGER_ROLE_ID in user_roles
-        
-        return app_commands.check(predicate)
+    def __init__(self):
+        self.user_messages: Dict[int, deque] = {}  # User ID -> deque of timestamps
+        self.message_hashes: Dict[str, float] = {}  # Message hash -> timestamp
+        self.cleanup_task = None
     
-    @staticmethod
-    def is_manager():
-        """Check if user is Owner or Manager"""
-        async def predicate(interaction: discord.Interaction) -> bool:
-            if interaction.user.id == OWNER_ID:
-                return True
-            
-            user_roles = {role.id for role in interaction.user.roles}
-            return MANAGER_ROLE_ID in user_roles
+    def start_cleanup(self):
+        """Start periodic cleanup of old rate limit data"""
+        async def cleanup():
+            while True:
+                await asyncio.sleep(60)  # Clean every minute
+                self.cleanup_old_data()
         
-        return app_commands.check(predicate)
+        asyncio.create_task(cleanup())
+    
+    def cleanup_old_data(self):
+        """Remove old rate limit entries"""
+        current_time = time.time()
+        
+        # Clean user message history
+        for user_id in list(self.user_messages.keys()):
+            # Remove timestamps older than 1 minute
+            while self.user_messages[user_id] and current_time - self.user_messages[user_id][0] > 60:
+                self.user_messages[user_id].popleft()
+            
+            # Remove user if no messages
+            if not self.user_messages[user_id]:
+                del self.user_messages[user_id]
+        
+        # Clean message hashes older than DUPLICATE_WINDOW_SECONDS
+        for msg_hash in list(self.message_hashes.keys()):
+            if current_time - self.message_hashes[msg_hash] > DUPLICATE_WINDOW_SECONDS:
+                del self.message_hashes[msg_hash]
+    
+    def can_send(self, user_id: int, message_content: str) -> tuple[bool, str]:
+        """Check if user can send a message"""
+        current_time = time.time()
+        
+        # Check rate limit per user
+        if user_id not in self.user_messages:
+            self.user_messages[user_id] = deque()
+        
+        # Check messages per minute
+        if len(self.user_messages[user_id]) >= MAX_MESSAGES_PER_MINUTE:
+            oldest = self.user_messages[user_id][0]
+            if current_time - oldest < 60:
+                return False, f"Rate limit exceeded. Maximum {MAX_MESSAGES_PER_MINUTE} messages per minute."
+        
+        # Check cooldown between messages
+        if self.user_messages[user_id]:
+            last_message = self.user_messages[user_id][-1]
+            if current_time - last_message < RATE_LIMIT_SECONDS:
+                wait_time = RATE_LIMIT_SECONDS - (current_time - last_message)
+                return False, f"Please wait {wait_time:.1f} seconds between messages."
+        
+        # Check for duplicate message content
+        message_hash = hashlib.md5(f"{user_id}:{message_content}".encode()).hexdigest()
+        if message_hash in self.message_hashes:
+            if current_time - self.message_hashes[message_hash] < DUPLICATE_WINDOW_SECONDS:
+                return False, "Duplicate message detected. Please don't send the same message multiple times."
+        
+        # Allow the message
+        self.user_messages[user_id].append(current_time)
+        self.message_hashes[message_hash] = current_time
+        
+        return True, "OK"
+    
+    def clear_user_cache(self, user_id: int):
+        """Clear rate limit cache for a specific user"""
+        if user_id in self.user_messages:
+            del self.user_messages[user_id]
+        logger.info(f"Cleared rate limit cache for user {user_id}")
+    
+    def clear_all_cache(self):
+        """Clear all rate limit caches"""
+        self.user_messages.clear()
+        self.message_hashes.clear()
+        logger.info("Cleared all rate limit caches")
 
-class ChannelManager:
-    """Handle channel creation and management"""
+class WebSocketManager:
+    """Manages WebSocket connection to the chat server"""
     
     def __init__(self, bot):
         self.bot = bot
-        self.processing_channels: Set[str] = set()
-    
-    async def create_or_get_ticket_channel(
-        self, 
-        guild: discord.Guild, 
-        category: discord.CategoryChannel, 
-        channel_name: str, 
-        welcome_message: str
-    ) -> Optional[discord.TextChannel]:
-        """Create a new ticket channel or get existing one"""
+        self.websocket = None
+        self.reconnect_task = None
+        self.processed_ids: Set[str] = set()
+        self.last_heartbeat = time.time()
+        self.is_connected = False
         
-        if channel_name in self.processing_channels:
-            logger.debug(f"Channel {channel_name} is already being created")
-            return None
+    async def connect(self):
+        """Connect to WebSocket server with retry logic"""
+        retry_count = 0
+        max_retries = 5
+        retry_delay = 5
+        
+        while retry_count < max_retries:
+            try:
+                self.websocket = await websockets.connect(
+                    WEBSOCKET_URL,
+                    ping_interval=20,
+                    ping_timeout=10,
+                    close_timeout=5
+                )
+                self.is_connected = True
+                self.last_heartbeat = time.time()
+                logger.info(f"Connected to WebSocket server at {WEBSOCKET_URL}")
+                
+                # Start listening for messages
+                asyncio.create_task(self.listen())
+                asyncio.create_task(self.heartbeat())
+                
+                return True
+                
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"Failed to connect to WebSocket (attempt {retry_count}/{max_retries}): {e}")
+                
+                if retry_count < max_retries:
+                    await asyncio.sleep(retry_delay * retry_count)
+                else:
+                    logger.error("Max retries reached. WebSocket connection failed.")
+                    return False
+    
+    async def heartbeat(self):
+        """Send heartbeat to keep connection alive"""
+        while self.is_connected and self.websocket:
+            try:
+                await asyncio.sleep(30)
+                if time.time() - self.last_heartbeat > 45:
+                    logger.warning("No heartbeat received, reconnecting...")
+                    await self.reconnect()
+            except Exception as e:
+                logger.error(f"Heartbeat error: {e}")
+    
+    async def listen(self):
+        """Listen for incoming WebSocket messages"""
+        try:
+            async for message in self.websocket:
+                self.last_heartbeat = time.time()
+                data = json.loads(message)
+                await self.process_message(data)
+                
+        except websockets.exceptions.ConnectionClosed as e:
+            logger.warning(f"WebSocket connection closed: {e}")
+            await self.reconnect()
+        except Exception as e:
+            logger.error(f"WebSocket listen error: {e}")
+            await self.reconnect()
+    
+    async def reconnect(self):
+        """Reconnect to WebSocket server"""
+        self.is_connected = False
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except:
+                pass
+        
+        await asyncio.sleep(5)
+        await self.connect()
+    
+    async def process_message(self, data: Dict[str, Any]):
+        """Process incoming WebSocket messages"""
+        msg_id = data.get('id')
+        
+        # Skip if already processed
+        if msg_id in self.processed_ids:
+            logger.debug(f"Skipping duplicate message: {msg_id}")
+            return
+        
+        # Add to processed IDs
+        self.processed_ids.add(msg_id)
+        
+        # Keep only last 1000 IDs
+        if len(self.processed_ids) > 1000:
+            self.processed_ids = set(list(self.processed_ids)[-500:])
+        
+        # Process based on message type
+        if data.get('origin') == 'web' and data.get('type') == 'chat':
+            await self.process_web_message(data)
+        elif data.get('type') == 'reply':
+            logger.info(f"Received reply from staff: {data.get('user')}")
+    
+    async def process_web_message(self, msg: Dict[str, Any]):
+        """Process message from website and forward to Discord"""
+        guild = self.bot.get_guild(GUILD_ID_INT)
+        category = self.bot.get_channel(TICKET_CATEGORY_ID)
+        
+        if not guild or not category:
+            logger.error(f"Missing guild or category")
+            return
+        
+        # Create or get channel for this user
+        user_id = msg['user'].lower().replace(" ", "-")
+        channel_name = f"web-{user_id}"
         
         channel = discord.utils.get(category.text_channels, name=channel_name)
-        if channel:
-            return channel
         
-        self.processing_channels.add(channel_name)
+        if not channel:
+            try:
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                    guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+                }
+                channel = await guild.create_text_channel(
+                    channel_name, 
+                    category=category, 
+                    overwrites=overwrites,
+                    reason=f"Web chat started by {msg['user']}"
+                )
+                await channel.send(f"🚀 **Chat Session Started:** `{msg['user']}`\nUse `/reply` to respond.")
+                logger.info(f"Created new web channel: {channel_name}")
+            except Exception as e:
+                logger.error(f"Failed to create channel: {e}")
+                return
+        
+        # Send message to Discord
+        embed = discord.Embed(
+            description=msg['text'],
+            color=0xef4444,
+            timestamp=datetime.utcnow()
+        )
+        embed.set_author(name=f"🌐 Web: {msg['user']}")
+        embed.set_footer(text=f"ID: {msg.get('id', 'unknown')[:8]}")
+        
         try:
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(read_messages=False),
-                guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-            }
-            
-            channel = await guild.create_text_channel(
-                channel_name, 
-                category=category, 
-                overwrites=overwrites,
-                reason=f"Ticket created for {channel_name}"
-            )
-            
-            await channel.send(welcome_message)
-            logger.info(f"Created new ticket channel: {channel_name}")
-            return channel
-            
-        except discord.Forbidden:
-            logger.error(f"Missing permissions to create channel {channel_name}")
+            await channel.send(embed=embed)
+            logger.info(f"Forwarded web message from {msg['user']} to {channel_name}")
         except Exception as e:
-            logger.error(f"Failed to create channel {channel_name}: {e}")
-        finally:
-            self.processing_channels.remove(channel_name)
+            logger.error(f"Failed to send message to Discord: {e}")
+    
+    async def send_message(self, message: Dict[str, Any]) -> bool:
+        """Send message through WebSocket"""
+        if not self.is_connected or not self.websocket:
+            logger.error("WebSocket not connected")
+            return False
         
-        return None
+        try:
+            # Add unique ID to prevent duplicates
+            message['id'] = f"msg_{int(time.time() * 1000)}_{hashlib.md5(message.get('text', '').encode()).hexdigest()[:8]}"
+            message['timestamp'] = datetime.utcnow().isoformat()
+            
+            await self.websocket.send(json.dumps(message))
+            logger.info(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send WebSocket message: {e}")
+            return False
 
 class RawrBot(commands.Bot):
     def __init__(self):
@@ -135,104 +304,51 @@ class RawrBot(commands.Bot):
         intents.message_content = True
         intents.members = True
         
-        # Internal Tracking
-        self.boot_time = int(time.time() * 1000)
-        self.processed_msg_ids: Set[str] = set()
-        self.channel_manager = ChannelManager(self)
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.boot_time = datetime.utcnow()
+        self.ws_manager = WebSocketManager(self)
+        self.rate_limiter = RateLimiter()
+        self.command_cooldown = commands.CooldownMapping.from_cooldown(1, 5, commands.BucketType.user)
         
         super().__init__(command_prefix="!", intents=intents)
     
-    def load_processed_ids(self):
-        """Load previously processed message IDs from file"""
-        try:
-            if os.path.exists(PROCESSED_IDS_FILE):
-                with open(PROCESSED_IDS_FILE, 'r') as f:
-                    data = json.load(f)
-                    self.processed_msg_ids = set(data.get('processed_ids', []))
-                    logger.info(f"Loaded {len(self.processed_msg_ids)} processed message IDs from {PROCESSED_IDS_FILE}")
-            else:
-                logger.info("No previous processed IDs file found, starting fresh")
-                self.processed_msg_ids = set()
-        except Exception as e:
-            logger.error(f"Failed to load processed IDs: {e}")
-            self.processed_msg_ids = set()
-    
-    def save_processed_ids(self):
-        """Save processed message IDs to file"""
-        try:
-            # Keep only the most recent IDs to prevent file from growing too large
-            ids_to_save = list(self.processed_msg_ids)[-MAX_STORED_IDS:]
-            data = {
-                'processed_ids': ids_to_save,
-                'last_updated': time.time(),
-                'total_processed': len(self.processed_msg_ids)
-            }
-            with open(PROCESSED_IDS_FILE, 'w') as f:
-                json.dump(data, f, indent=2)
-            logger.debug(f"Saved {len(ids_to_save)} processed message IDs to {PROCESSED_IDS_FILE}")
-        except Exception as e:
-            logger.error(f"Failed to save processed IDs: {e}")
-    
     async def setup_hook(self):
         """Setup the bot before running"""
-        # Load saved processed IDs
-        self.load_processed_ids()
+        # Connect to WebSocket
+        await self.ws_manager.connect()
         
-        # Initialize session
-        self.session = aiohttp.ClientSession()
+        # Start rate limiter cleanup
+        self.rate_limiter.start_cleanup()
         
-        # Sync commands
+        # Sync slash commands
         self.tree.copy_global_to(guild=GUILD_ID)
         await self.tree.sync(guild=GUILD_ID)
         
         # Start background tasks
-        self.check_live_chat.start()
-        self.save_processed_ids_task.start()
-        self.cleanup_old_ids_task.start()
-        self.keep_alive_task.start()  # For 24/7 hosting
+        self.clear_cache_task.start()
+        self.status_update_task.start()
         
         logger.info("Bot setup completed")
-        logger.info(f"Bot is running in guild: {GUILD_ID_INT}")
     
     async def close(self):
         """Cleanup when bot closes"""
-        # Save processed IDs before closing
-        self.save_processed_ids()
+        if self.ws_manager.websocket:
+            await self.ws_manager.websocket.close()
         
-        # Close session
-        if self.session:
-            await self.session.close()
-        
-        # Stop tasks
-        self.check_live_chat.cancel()
-        self.save_processed_ids_task.cancel()
-        self.cleanup_old_ids_task.cancel()
-        self.keep_alive_task.cancel()
+        self.clear_cache_task.cancel()
+        self.status_update_task.cancel()
         
         await super().close()
         logger.info("Bot closed successfully")
     
-    @tasks.loop(minutes=5)  # Save every 5 minutes
-    async def save_processed_ids_task(self):
-        """Periodically save processed message IDs"""
-        self.save_processed_ids()
+    @tasks.loop(hours=6)
+    async def clear_cache_task(self):
+        """Periodically clear rate limit cache"""
+        self.rate_limiter.clear_all_cache()
+        logger.info("Rate limit cache cleared")
     
-    @tasks.loop(hours=24)  # Clean up once per day
-    async def cleanup_old_ids_task(self):
-        """Clean up old processed message IDs to prevent memory bloat"""
-        if len(self.processed_msg_ids) > MAX_STORED_IDS:
-            old_count = len(self.processed_msg_ids)
-            # Keep only the most recent IDs
-            self.processed_msg_ids = set(list(self.processed_msg_ids)[-MAX_STORED_IDS:])
-            logger.info(f"Cleaned up old processed IDs: {old_count} -> {len(self.processed_msg_ids)}")
-            self.save_processed_ids()
-    
-    @tasks.loop(minutes=30)  # Keep alive for 24/7 hosting
-    async def keep_alive_task(self):
-        """Keep the bot active on 24/7 hosting platforms"""
-        logger.debug("Keep-alive signal sent")
-        # Update presence occasionally to show activity
+    @tasks.loop(minutes=30)
+    async def status_update_task(self):
+        """Update bot status periodically"""
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.competing,
@@ -240,113 +356,31 @@ class RawrBot(commands.Bot):
             )
         )
     
-    async def send_web_reply(self, user: str, content: str, staff_name: str) -> bool:
-        """Send a reply to the web chat"""
-        payload = {
-            "user": staff_name,
-            "text": content,
-            "timestamp": int(time.time() * 1000),
-            "origin": "discord"
-        }
-        
-        for attempt in range(MAX_RETRIES):
-            try:
-                async with self.session.post(CHAT_URL, json=payload) as resp:
-                    if resp.status == 200:
-                        logger.info(f"Web reply sent to {user}")
-                        return True
-                    else:
-                        logger.warning(f"Firebase returned status {resp.status} (attempt {attempt + 1})")
-            except Exception as e:
-                logger.error(f"Failed to send web reply (attempt {attempt + 1}): {e}")
-                if attempt < MAX_RETRIES - 1:
-                    await asyncio.sleep(RETRY_DELAY)
-        
-        return False
-    
-    @tasks.loop(seconds=MESSAGE_FETCH_INTERVAL)
-    async def check_live_chat(self):
-        """Check for new web chat messages"""
-        if not self.session:
-            return
-        
-        try:
-            async with self.session.get(CHAT_URL) as response:
-                if response.status != 200:
-                    logger.warning(f"Firebase returned status {response.status}")
-                    return
-                
-                data = await response.json()
-                if not data:
-                    return
-                
-                # Sort messages by timestamp to ensure proper order
-                sorted_messages = sorted(data.items(), key=lambda x: x[1].get('timestamp', 0))
-                
-                for msg_id, msg in sorted_messages:
-                    await self.process_web_message(msg_id, msg)
-                    
-        except aiohttp.ClientError as e:
-            logger.error(f"Network error in Firebase loop: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error in Firebase loop: {e}")
-    
-    async def process_web_message(self, msg_id: str, msg: Dict[str, Any]):
-        """Process an individual web message"""
-        # Skip if already processed (using persistent storage)
-        if msg_id in self.processed_msg_ids:
-            return
-        
-        # Skip non-web messages
-        if msg.get('origin') != 'web':
-            self.processed_msg_ids.add(msg_id)
-            return
-        
-        # Skip historical messages from before bot started
-        msg_ts = msg.get('timestamp', 0)
-        if msg_ts < self.boot_time:
-            self.processed_msg_ids.add(msg_id)
-            return
-        
-        # Mark as processed immediately to prevent duplicates
-        self.processed_msg_ids.add(msg_id)
-        
-        guild = self.get_guild(GUILD_ID_INT)
-        category = self.get_channel(TICKET_CATEGORY_ID)
-        
-        if not guild or not category:
-            logger.error(f"Missing guild or category: guild={guild}, category={category}")
-            return
-        
-        user_id = msg['user'].lower().replace(" ", "-")
-        channel_name = f"web-{user_id}"
-        
-        welcome_msg = f"🚀 **Session Started:** `{msg['user']}`\nUse `/reply` to chat back."
-        channel = await self.channel_manager.create_or_get_ticket_channel(
-            guild, category, channel_name, welcome_msg
-        )
-        
-        if not channel:
-            return
-        
-        embed = discord.Embed(
-            description=msg['text'], 
-            color=0xef4444,
-            timestamp=datetime.utcnow()
-        )
-        embed.set_author(name=f"Web: {msg['user']}")
-        embed.set_footer(text=f"ID: {msg_id[:8]}")
-        
-        try:
-            await channel.send(embed=embed)
-            logger.info(f"Forwarded web message from {msg['user']} to {channel_name}")
-        except discord.Forbidden:
-            logger.error(f"Cannot send message to channel {channel_name}")
-        except Exception as e:
-            logger.error(f"Failed to send message to channel: {e}")
+    async def on_command_error(self, ctx, error):
+        """Handle command errors"""
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"⏰ Command on cooldown. Try again in {error.retry_after:.1f} seconds.", delete_after=5)
 
 # Create bot instance
 bot = RawrBot()
+
+# --- PERMISSION CHECKERS ---
+
+def is_staff():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.id == OWNER_ID:
+            return True
+        user_roles = {role.id for role in interaction.user.roles}
+        return STAFF_ROLE_ID in user_roles or MANAGER_ROLE_ID in user_roles
+    return app_commands.check(predicate)
+
+def is_manager():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.user.id == OWNER_ID:
+            return True
+        user_roles = {role.id for role in interaction.user.roles}
+        return MANAGER_ROLE_ID in user_roles
+    return app_commands.check(predicate)
 
 # --- EVENT HANDLERS ---
 
@@ -355,19 +389,13 @@ async def on_ready():
     """Called when bot is ready"""
     logger.info(f"Logged in as: {bot.user.name} (ID: {bot.user.id})")
     logger.info(f"Connected to {len(bot.guilds)} guilds")
-    logger.info(f"Loaded {len(bot.processed_msg_ids)} cached message IDs")
     
-    # Set initial presence
     await bot.change_presence(
         activity=discord.Activity(
-            type=discord.ActivityType.competing, 
+            type=discord.ActivityType.competing,
             name="rawrs.zapto.org"
         )
     )
-    
-    # Log guild information
-    for guild in bot.guilds:
-        logger.info(f"Guild: {guild.name} (ID: {guild.id})")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -375,7 +403,7 @@ async def on_message(message: discord.Message):
     if message.author == bot.user:
         return
     
-    # DM to Ticket Channel Logic
+    # Handle DM messages
     if isinstance(message.channel, discord.DMChannel):
         await handle_dm_message(message)
         return
@@ -383,169 +411,136 @@ async def on_message(message: discord.Message):
     await bot.process_commands(message)
 
 async def handle_dm_message(message: discord.Message):
-    """Handle DM messages and create tickets"""
+    """Handle DM messages and forward to WebSocket"""
+    # Rate limit check
+    can_send, error_msg = bot.rate_limiter.can_send(message.author.id, message.content)
+    if not can_send:
+        await message.author.send(f"❌ {error_msg}")
+        return
+    
     guild = bot.get_guild(GUILD_ID_INT)
     category = bot.get_channel(TICKET_CATEGORY_ID)
     
     if not guild or not category:
-        logger.error("Cannot handle DM: missing guild or category")
-        await message.author.send("❌ **System Error:** Support system unavailable. Please try again later.")
+        await message.author.send("❌ Support system unavailable. Please try again later.")
         return
     
-    channel_name = f"ticket-{message.author.name}".lower().replace(" ", "-")
-    welcome_msg = f"🎫 **New Private Ticket**\nUser: {message.author.mention}\nID: `{message.author.id}`"
+    # Send to WebSocket
+    ws_message = {
+        "type": "dm",
+        "user": message.author.name,
+        "user_id": message.author.id,
+        "text": message.content,
+        "origin": "discord",
+        "channel": "dm"
+    }
     
-    channel = await bot.channel_manager.create_or_get_ticket_channel(
-        guild, category, channel_name, welcome_msg
-    )
+    success = await bot.ws_manager.send_message(ws_message)
     
-    if not channel:
-        await message.author.send("❌ **System Error:** Could not create ticket. Please try again later.")
-        return
-    
-    embed = discord.Embed(
-        description=message.content, 
-        color=0xef4444,
-        timestamp=datetime.utcnow()
-    )
-    embed.set_author(
-        name=message.author.name, 
-        icon_url=message.author.display_avatar.url
-    )
-    
-    try:
-        await channel.send(embed=embed)
-        await message.author.send("✅ **Message Delivered.** Staff will contact you here shortly.")
-        logger.info(f"Created DM ticket for {message.author.name} (ID: {message.author.id})")
-    except discord.Forbidden:
-        logger.error(f"Cannot send message to channel {channel_name}")
-        await message.author.send("❌ **Error:** Could not deliver your message due to permissions.")
-    except Exception as e:
-        logger.error(f"Failed to handle DM message: {e}")
-        await message.author.send("❌ **Error:** Could not deliver your message.")
+    if success:
+        await message.author.send("✅ Message sent to support staff. They will reply shortly.")
+        logger.info(f"DM from {message.author.name} forwarded to WebSocket")
+    else:
+        await message.author.send("❌ Failed to send message. Please try again.")
 
 # --- SLASH COMMANDS ---
 
-@bot.tree.command(name="reply", description="Send a message to a Web or DM ticket")
-@PermissionChecker.is_staff()
+@bot.tree.command(name="reply", description="Reply to a web chat message")
+@is_staff()
 async def reply(interaction: discord.Interaction, content: str):
-    """Reply to a web or DM ticket"""
-    await interaction.response.defer(ephemeral=False)
-    
-    # Validate content
-    if not content or len(content) > 2000:
-        await interaction.followup.send("❌ Message must be between 1 and 2000 characters.")
+    """Reply to a web chat message"""
+    # Rate limit check
+    can_send, error_msg = bot.rate_limiter.can_send(interaction.user.id, content)
+    if not can_send:
+        await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
         return
     
-    # Web Ticket
-    if interaction.channel.name.startswith("web-"):
-        user = interaction.channel.name.replace("web-", "").replace("-", " ")
-        success = await bot.send_web_reply(user, content, interaction.user.display_name)
-        
-        if success:
-            await interaction.followup.send(f"✅ **[Web Reply to {user}]** {content}")
-            logger.info(f"Staff {interaction.user.name} replied to web user {user}")
-        else:
-            await interaction.followup.send("❌ Failed to send web reply. Please try again.")
+    await interaction.response.defer()
     
-    # DM Ticket
-    elif interaction.channel.name.startswith("ticket-"):
-        member_name = interaction.channel.name.replace("ticket-", "")
-        member = discord.utils.get(interaction.guild.members, name=member_name)
+    # Check if in web channel
+    if not interaction.channel.name.startswith("web-"):
+        await interaction.followup.send("❌ This command can only be used in web chat channels.")
+        return
+    
+    # Extract username from channel name
+    username = interaction.channel.name.replace("web-", "").replace("-", " ")
+    
+    # Send reply through WebSocket
+    message = {
+        "type": "reply",
+        "user": interaction.user.display_name,
+        "user_id": interaction.user.id,
+        "text": content,
+        "origin": "discord",
+        "target_user": username,
+        "channel_id": interaction.channel.id
+    }
+    
+    success = await bot.ws_manager.send_message(message)
+    
+    if success:
+        embed = discord.Embed(
+            description=content,
+            color=0x00ff00,
+            timestamp=datetime.utcnow()
+        )
+        embed.set_author(name=f"💬 Staff Reply to {username}")
+        embed.set_footer(text=f"Sent by {interaction.user.display_name}")
         
-        if member:
-            try:
-                await member.send(f"💬 **rawr.xyz Staff ({interaction.user.display_name}):** {content}")
-                await interaction.followup.send(f"✅ **[DM Sent to {member.name}]** {content}")
-                logger.info(f"Staff {interaction.user.name} sent DM reply to {member.name}")
-            except discord.Forbidden:
-                await interaction.followup.send("❌ Cannot DM user (DMs closed or user left the server).")
-            except Exception as e:
-                logger.error(f"Failed to send DM: {e}")
-                await interaction.followup.send("❌ Failed to send DM. Please try again.")
-        else:
-            await interaction.followup.send("❌ User is no longer in the server.")
+        await interaction.followup.send(embed=embed)
+        logger.info(f"Staff {interaction.user.name} replied to {username}")
     else:
-        await interaction.followup.send("❌ Run this command in a valid ticket channel (web- or ticket-).")
+        await interaction.followup.send("❌ Failed to send reply. WebSocket connection issue.")
 
-@bot.tree.command(name="close", description="Close and delete the current support channel")
-@PermissionChecker.is_manager()
+@bot.tree.command(name="close", description="Close and delete the current ticket channel")
+@is_manager()
 async def close(interaction: discord.Interaction):
-    """Close and delete a ticket channel"""
+    """Close and delete the current ticket channel"""
     if interaction.channel.category_id != TICKET_CATEGORY_ID:
         await interaction.response.send_message("❌ This is not a ticket channel.", ephemeral=True)
         return
     
+    await interaction.response.send_message("🔒 Closing channel in 5 seconds...")
+    await asyncio.sleep(5)
+    
     channel_name = interaction.channel.name
-    await interaction.response.send_message(f"🔒 **Closing channel in {CLOSE_DELAY_SECONDS} seconds...**")
-    await asyncio.sleep(CLOSE_DELAY_SECONDS)
     
     try:
         await interaction.channel.delete()
-        logger.info(f"Closed ticket channel: {channel_name} by {interaction.user.name}")
-    except discord.Forbidden:
-        await interaction.followup.send("❌ Missing permissions to delete this channel.")
+        logger.info(f"Channel closed: {channel_name} by {interaction.user.name}")
     except Exception as e:
         logger.error(f"Failed to delete channel: {e}")
-        await interaction.followup.send("❌ Failed to close ticket. Please try again or contact an admin.")
+        await interaction.followup.send("❌ Failed to close channel.")
 
-@bot.tree.command(name="website", description="Get the official website link")
-async def website(interaction: discord.Interaction):
-    """Get the website link"""
-    embed = discord.Embed(
-        title="🌐 Rawr.xyz",
-        description=f"Explore our website at:\n{WEBSITE_URL}",
-        color=0xef4444
-    )
-    embed.add_field(name="Features", value="• Free Scripts\n• Active Support\n• Regular Updates", inline=False)
+@bot.tree.command(name="clear_cache", description="Clear rate limit cache for a user")
+@is_manager()
+async def clear_cache(interaction: discord.Interaction, user_id: Optional[int] = None):
+    """Clear rate limit cache for a specific user or all users"""
+    if user_id:
+        bot.rate_limiter.clear_user_cache(user_id)
+        await interaction.response.send_message(f"✅ Cleared rate limit cache for user {user_id}", ephemeral=True)
+    else:
+        bot.rate_limiter.clear_all_cache()
+        await interaction.response.send_message("✅ Cleared all rate limit caches", ephemeral=True)
+
+@bot.tree.command(name="stats", description="Show bot statistics")
+@is_staff()
+async def stats(interaction: discord.Interaction):
+    """Display bot statistics"""
+    uptime = datetime.utcnow() - bot.boot_time
+    days = uptime.days
+    hours = uptime.seconds // 3600
+    minutes = (uptime.seconds % 3600) // 60
+    
+    embed = discord.Embed(title="📊 Bot Statistics", color=0xef4444)
+    embed.add_field(name="⏰ Uptime", value=f"{days}d {hours}h {minutes}m", inline=True)
+    embed.add_field(name="⚡ Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
+    embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
+    embed.add_field(name="🔌 WebSocket", value="Connected" if bot.ws_manager.is_connected else "Disconnected", inline=True)
+    embed.add_field(name="💬 Cached Msgs", value=str(len(bot.ws_manager.processed_ids)), inline=True)
+    embed.add_field(name="🚦 Rate Limited Users", value=str(len(bot.rate_limiter.user_messages)), inline=True)
+    
     await interaction.response.send_message(embed=embed, ephemeral=True)
-
-@bot.tree.command(name="updates", description="Fetch current script status and updates")
-async def updates(interaction: discord.Interaction):
-    """Get current script status"""
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(STATUS_JSON_URL, timeout=10) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    embed = discord.Embed(
-                        title="🚀 Script Update", 
-                        color=0xef4444,
-                        timestamp=datetime.utcnow()
-                    )
-                    embed.add_field(
-                        name="Status", 
-                        value=f"**{data.get('status', 'Unknown').upper()}**",
-                        inline=True
-                    )
-                    embed.add_field(
-                        name="Version", 
-                        value=f"`{data.get('version', 'N/A')}`",
-                        inline=True
-                    )
-                    if data.get('changelog'):
-                        embed.add_field(
-                            name="📝 Changes", 
-                            value=data['changelog'][:1024],
-                            inline=False
-                        )
-                    await interaction.response.send_message(embed=embed)
-                else:
-                    await interaction.response.send_message(
-                        "⚠️ Status JSON unreachable. Please try again later.", 
-                        ephemeral=True
-                    )
-        except asyncio.TimeoutError:
-            await interaction.response.send_message(
-                "⚠️ Request timed out. The status service might be down.", 
-                ephemeral=True
-            )
-        except Exception as e:
-            logger.error(f"Failed to fetch updates: {e}")
-            await interaction.response.send_message(
-                "⚠️ Failed to fetch updates. Please try again later.", 
-                ephemeral=True
-            )
 
 @bot.tree.command(name="ping", description="Check bot latency")
 async def ping(interaction: discord.Interaction):
@@ -554,73 +549,39 @@ async def ping(interaction: discord.Interaction):
     
     if latency < 100:
         color = 0x00ff00
-        status = "Excellent"
+        status = "🟢 Excellent"
     elif latency < 200:
         color = 0xffaa00
-        status = "Good"
+        status = "🟡 Good"
     else:
         color = 0xef4444
-        status = "Poor"
+        status = "🔴 Poor"
     
-    embed = discord.Embed(
-        title="🏓 Pong!",
-        description=f"**Latency:** `{latency}ms`\n**Status:** {status}",
-        color=color
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-@bot.tree.command(name="stats", description="Show bot statistics")
-@PermissionChecker.is_staff()
-async def stats(interaction: discord.Interaction):
-    """Display bot statistics"""
-    uptime = int(time.time() * 1000) - bot.boot_time
-    uptime_seconds = uptime // 1000
-    days = uptime_seconds // 86400
-    hours = (uptime_seconds % 86400) // 3600
-    minutes = (uptime_seconds % 3600) // 60
-    seconds = uptime_seconds % 60
-    
-    embed = discord.Embed(
-        title="📊 Bot Statistics", 
-        color=0xef4444,
-        timestamp=datetime.utcnow()
-    )
-    embed.add_field(name="⏰ Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=True)
-    embed.add_field(name="💬 Processed Messages", value=str(len(bot.processed_msg_ids)), inline=True)
-    embed.add_field(name="⚡ Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
-    embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
-    embed.add_field(name="📁 Stored IDs", value=f"{len(bot.processed_msg_ids)}/{MAX_STORED_IDS}", inline=True)
-    embed.add_field(name="🔄 Last Save", value="Auto-save active", inline=True)
-    embed.set_footer(text="Rawr.xyz Bot", icon_url=bot.user.display_avatar.url)
+    embed = discord.Embed(title="🏓 Pong!", color=color)
+    embed.add_field(name="Latency", value=f"{latency}ms", inline=True)
+    embed.add_field(name="Status", value=status, inline=True)
+    embed.add_field(name="WebSocket", value="✅ Connected" if bot.ws_manager.is_connected else "❌ Disconnected", inline=True)
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="purge_ids", description="Clear cached message IDs (Admin only)")
-@PermissionChecker.is_manager()
-async def purge_ids(interaction: discord.Interaction):
-    """Clear the processed message IDs cache (admin command)"""
-    if interaction.user.id != OWNER_ID:
-        await interaction.response.send_message("❌ This command is owner-only.", ephemeral=True)
-        return
-    
-    old_count = len(bot.processed_msg_ids)
-    bot.processed_msg_ids.clear()
-    bot.save_processed_ids()
-    
-    await interaction.response.send_message(f"✅ Cleared {old_count} cached message IDs.", ephemeral=True)
-    logger.warning(f"Message ID cache purged by owner {interaction.user.name}")
+@bot.tree.command(name="website", description="Get the official website link")
+async def website(interaction: discord.Interaction):
+    """Get the website link"""
+    embed = discord.Embed(
+        title="🌐 Rawr.xyz",
+        description=f"**Website:** {WEBSITE_URL}\n**Support:** Live chat available",
+        color=0xef4444
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # --- ERROR HANDLING ---
 
 @bot.tree.error
-async def on_app_command_error(
-    interaction: discord.Interaction, 
-    error: app_commands.AppCommandError
-):
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     """Handle command errors"""
     if isinstance(error, app_commands.CheckFailure):
         await interaction.response.send_message(
-            "⛔ **Access Denied:** Staff or Manager role required for this command.", 
+            "⛔ **Access Denied:** Staff or Manager role required.", 
             ephemeral=True
         )
     elif isinstance(error, app_commands.CommandOnCooldown):
@@ -628,20 +589,10 @@ async def on_app_command_error(
             f"⏰ **Cooldown:** Try again in {error.retry_after:.1f} seconds.", 
             ephemeral=True
         )
-    elif isinstance(error, discord.Forbidden):
-        await interaction.response.send_message(
-            "❌ I don't have permission to do that. Please check my role permissions.", 
-            ephemeral=True
-        )
-    elif isinstance(error, discord.HTTPException):
-        await interaction.response.send_message(
-            "❌ A network error occurred. Please try again later.", 
-            ephemeral=True
-        )
     else:
-        logger.error(f"Unhandled command error: {error}", exc_info=True)
+        logger.error(f"Command error: {error}")
         await interaction.response.send_message(
-            "❌ An unexpected error occurred. The developers have been notified.", 
+            "❌ An unexpected error occurred.", 
             ephemeral=True
         )
 
@@ -649,11 +600,6 @@ async def on_app_command_error(
 if __name__ == "__main__":
     try:
         logger.info("Starting Rawr.xyz Discord Bot...")
-        logger.info(f"Configuration loaded from environment variables")
         bot.run(TOKEN)
-    except discord.LoginFailure:
-        logger.error("Invalid bot token. Please check your BOT_TOKEN environment variable.")
-    except discord.PrivilegedIntentsRequired:
-        logger.error("Privileged intents required but not enabled. Enable them in Discord Developer Portal.")
     except Exception as e:
-        logger.error(f"Failed to start bot: {e}", exc_info=True)
+        logger.error(f"Failed to start bot: {e}")
