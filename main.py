@@ -71,6 +71,82 @@ class Config:
             website_url=os.getenv('WEBSITE_URL', 'https://rawrs.zapto.org/'),
         )
 
+@dataclass
+class Ticket:
+    """Ticket data class"""
+    user_id: int
+    user_name: str
+    channel_id: int
+    claimed_by: Optional[int] = None
+    claimed_by_name: Optional[str] = None
+    claimed_by_rank: Optional[str] = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            'user_id': self.user_id,
+            'user_name': self.user_name,
+            'channel_id': self.channel_id,
+            'claimed_by': self.claimed_by,
+            'claimed_by_name': self.claimed_by_name,
+            'claimed_by_rank': self.claimed_by_rank,
+            'created_at': self.created_at.isoformat(),
+        }
+
+class TicketManager:
+    """Manages support tickets"""
+    
+    def __init__(self):
+        self.tickets: Dict[int, Ticket] = {}  # user_id -> Ticket
+        self.lock = asyncio.Lock()
+    
+    async def create(self, user_id: int, user_name: str, channel_id: int) -> Optional[Ticket]:
+        """Create a new ticket (if doesn't exist)"""
+        async with self.lock:
+            # Only create if doesn't exist
+            if user_id in self.tickets:
+                return self.tickets[user_id]
+            
+            ticket = Ticket(
+                user_id=user_id,
+                user_name=user_name,
+                channel_id=channel_id
+            )
+            self.tickets[user_id] = ticket
+            logger.info(f"Ticket created for {user_name} ({user_id})")
+            return ticket
+    
+    async def get(self, user_id: int) -> Optional[Ticket]:
+        """Get ticket for user"""
+        async with self.lock:
+            return self.tickets.get(user_id)
+    
+    async def claim(self, user_id: int, staff_id: int, staff_name: str) -> Optional[Ticket]:
+        """Claim a ticket"""
+        async with self.lock:
+            ticket = self.tickets.get(user_id)
+            if not ticket:
+                return None
+            
+            ticket.claimed_by = staff_id
+            ticket.claimed_by_name = staff_name
+            logger.info(f"Ticket for {ticket.user_name} claimed by {staff_name}")
+            return ticket
+    
+    async def close(self, user_id: int) -> Optional[Ticket]:
+        """Close a ticket"""
+        async with self.lock:
+            ticket = self.tickets.pop(user_id, None)
+            if ticket:
+                logger.info(f"Ticket closed for {ticket.user_name}")
+            return ticket
+    
+    async def get_all(self) -> list[Ticket]:
+        """Get all open tickets"""
+        async with self.lock:
+            return list(self.tickets.values())
+
 # --- RATE LIMITING ---
 
 class RateLimiter:
@@ -122,16 +198,7 @@ class RateLimiter:
             logger.debug(f"Cleaned {cleaned_users} users, {cleaned_hashes} message hashes")
     
     def can_send(self, user_id: int, message_content: str) -> Tuple[bool, str]:
-        """
-        Check if user can send a message.
-        
-        Args:
-            user_id: Discord user ID
-            message_content: Message content to check
-            
-        Returns:
-            (allowed, error_message)
-        """
+        """Check if user can send a message"""
         current_time = time.time()
         
         # Initialize user if not tracked
@@ -212,12 +279,7 @@ class WebSocketManager:
         self._heartbeat_task: Optional[asyncio.Task] = None
     
     async def connect(self) -> bool:
-        """
-        Connect to WebSocket server with exponential backoff.
-        
-        Returns:
-            True if connected, False if max retries exceeded
-        """
+        """Connect to WebSocket server with exponential backoff"""
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 self.websocket = await asyncio.wait_for(
@@ -233,7 +295,6 @@ class WebSocketManager:
                 self.last_heartbeat = time.time()
                 logger.info(f"Connected to WebSocket: {self.config.websocket_url}")
                 
-                # Start background tasks
                 self._listen_task = asyncio.create_task(self._listen_loop())
                 self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                 
@@ -253,21 +314,19 @@ class WebSocketManager:
         return False
     
     async def _heartbeat_loop(self) -> None:
-        """Send periodic heartbeat to maintain connection"""
+        """Send periodic heartbeat"""
         try:
             while self.is_connected and self.websocket:
                 await asyncio.sleep(self.HEARTBEAT_INTERVAL)
-                
                 time_since_heartbeat = time.time() - self.last_heartbeat
                 if time_since_heartbeat > self.HEARTBEAT_TIMEOUT:
                     logger.warning("Heartbeat timeout, reconnecting...")
                     await self.reconnect()
-                    
         except asyncio.CancelledError:
             logger.debug("Heartbeat loop cancelled")
     
     async def _listen_loop(self) -> None:
-        """Listen for incoming WebSocket messages"""
+        """Listen for incoming messages"""
         try:
             async for message in self.websocket:
                 self.last_heartbeat = time.time()
@@ -276,7 +335,6 @@ class WebSocketManager:
                     await self.process_message(data)
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON from WebSocket: {e}")
-                    
         except websockets.exceptions.ConnectionClosed as e:
             logger.warning(f"WebSocket closed: {e.rcvd} {e.reason}")
             await self.reconnect()
@@ -294,7 +352,6 @@ class WebSocketManager:
             except Exception as e:
                 logger.debug(f"Error closing WebSocket: {e}")
         
-        # Cancel existing tasks
         if self._listen_task:
             self._listen_task.cancel()
         if self._heartbeat_task:
@@ -304,29 +361,21 @@ class WebSocketManager:
         await self.connect()
     
     async def process_message(self, data: Dict[str, Any]) -> None:
-        """
-        Process incoming WebSocket message.
-        
-        Args:
-            data: Parsed JSON message data
-        """
+        """Process incoming WebSocket message"""
         msg_id = data.get('id')
         if not msg_id:
             logger.warning("Received message without ID")
             return
         
-        # Skip duplicate messages
         if msg_id in self.processed_ids:
             logger.debug(f"Skipping duplicate message: {msg_id}")
             return
         
         self.processed_ids.add(msg_id)
         
-        # Trim processed IDs set to prevent unbounded growth
         if len(self.processed_ids) > self.PROCESSED_IDS_MAX:
             self.processed_ids = set(list(self.processed_ids)[-self.PROCESSED_IDS_TRIM:])
         
-        # Route message by type
         msg_type = data.get('type')
         msg_origin = data.get('origin')
         
@@ -338,12 +387,7 @@ class WebSocketManager:
             logger.debug(f"Unhandled message type: {msg_type}")
     
     async def _process_web_chat(self, msg: Dict[str, Any]) -> None:
-        """
-        Process web chat message and forward to Discord.
-        
-        Args:
-            msg: Message data from website
-        """
+        """Process web chat message"""
         guild = self.bot.get_guild(self.config.guild_id)
         category = self.bot.get_channel(self.config.ticket_category_id)
         
@@ -351,18 +395,15 @@ class WebSocketManager:
             logger.error(f"Missing guild or category")
             return
         
-        # Generate channel name from user
         user_name = msg.get('user', 'unknown')
         channel_name = f"web-{user_name.lower().replace(' ', '-')}"
         
-        # Find or create channel
         channel = discord.utils.get(category.text_channels, name=channel_name)
         if not channel:
             channel = await self._create_web_channel(guild, category, channel_name, user_name)
             if not channel:
                 return
         
-        # Send message to Discord
         embed = discord.Embed(
             description=msg.get('text', ''),
             color=0xef4444,
@@ -384,12 +425,7 @@ class WebSocketManager:
         channel_name: str,
         user_name: str
     ) -> Optional[discord.TextChannel]:
-        """
-        Create new web chat channel.
-        
-        Returns:
-            Created channel or None if failed
-        """
+        """Create new web chat channel"""
         try:
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -401,7 +437,7 @@ class WebSocketManager:
                 overwrites=overwrites,
                 reason=f"Web chat from {user_name}"
             )
-            await channel.send(f"🚀 **Chat Session Started:** `{user_name}`\nUse `/reply` to respond.")
+            await channel.send(f"🚀 **Chat Session Started:** `{user_name}`")
             logger.info(f"Created web channel: {channel_name}")
             return channel
         except discord.Forbidden:
@@ -411,21 +447,12 @@ class WebSocketManager:
         return None
     
     async def send_message(self, message: Dict[str, Any]) -> bool:
-        """
-        Send message through WebSocket.
-        
-        Args:
-            message: Message data to send
-            
-        Returns:
-            True if sent successfully
-        """
+        """Send message through WebSocket"""
         if not self.is_connected or not self.websocket:
             logger.error("WebSocket not connected")
             return False
         
         try:
-            # Add metadata
             message['id'] = self._generate_message_id(message)
             message['timestamp'] = datetime.utcnow().isoformat()
             
@@ -443,7 +470,7 @@ class WebSocketManager:
         return f"msg_{int(time.time() * 1000)}_{text_hash}"
     
     async def close(self) -> None:
-        """Close WebSocket connection and cleanup"""
+        """Close WebSocket connection"""
         self.is_connected = False
         
         if self._listen_task:
@@ -460,7 +487,7 @@ class WebSocketManager:
 # --- BOT CLASS ---
 
 class RawrBot(commands.Bot):
-    """Main Discord bot with improved structure"""
+    """Main Discord bot"""
     
     def __init__(self, config: Config):
         intents = discord.Intents.default()
@@ -471,24 +498,21 @@ class RawrBot(commands.Bot):
         self.boot_time = datetime.utcnow()
         self.ws_manager = WebSocketManager(self, config)
         self.rate_limiter = RateLimiter(config)
+        self.ticket_manager = TicketManager()
+        self.user_first_message: Set[int] = set()  # Track who sent first message
         
         super().__init__(command_prefix="!", intents=intents)
     
     async def setup_hook(self) -> None:
-        """Initialize bot before running"""
+        """Initialize bot"""
         logger.info("Bot setup starting...")
         
-        # Connect to WebSocket
         await self.ws_manager.connect()
-        
-        # Start rate limiter cleanup
         self.rate_limiter.start_cleanup()
         
-        # Sync slash commands
         self.tree.copy_global_to(guild=discord.Object(id=self.config.guild_id))
         await self.tree.sync(guild=discord.Object(id=self.config.guild_id))
         
-        # Start background tasks
         self.cache_cleanup_task.start()
         self.status_update_task.start()
         
@@ -498,16 +522,12 @@ class RawrBot(commands.Bot):
         """Cleanup when bot stops"""
         logger.info("Bot shutting down...")
         
-        # Cancel tasks
         if self.cache_cleanup_task.is_running():
             self.cache_cleanup_task.cancel()
         if self.status_update_task.is_running():
             self.status_update_task.cancel()
         
-        # Close WebSocket
         await self.ws_manager.close()
-        
-        # Stop rate limiter
         self.rate_limiter.stop()
         
         await super().close()
@@ -536,7 +556,7 @@ class RawrBot(commands.Bot):
     @cache_cleanup_task.before_loop
     @status_update_task.before_loop
     async def before_loop(self) -> None:
-        """Wait for bot to be ready before starting tasks"""
+        """Wait for bot to be ready"""
         await self.wait_until_ready()
     
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
@@ -577,9 +597,17 @@ async def setup_events(bot: RawrBot) -> None:
         await bot.process_commands(message)
 
 async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
-    """Handle DM messages"""
-    # Rate limit
-    allowed, reason = bot.rate_limiter.can_send(message.author.id, message.content)
+    """Handle DM messages - IMPROVED NO SPAM VERSION"""
+    user_id = message.author.id
+    
+    # Check if user already has ticket/sent first message
+    if user_id in bot.user_first_message:
+        # User already sent a message, ignore further DMs until staff claims
+        logger.debug(f"Ignoring repeat DM from {message.author.name} (ticket pending)")
+        return
+    
+    # Rate limit check
+    allowed, reason = bot.rate_limiter.can_send(user_id, message.content)
     if not allowed:
         await message.author.send(f"❌ {reason}")
         return
@@ -590,22 +618,148 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
         await message.author.send("❌ Support system unavailable")
         return
     
-    # Send to WebSocket
-    ws_message = {
-        "type": MessageType.DM.value,
-        "user": message.author.name,
-        "user_id": message.author.id,
-        "text": message.content,
-        "origin": MessageOrigin.DISCORD.value,
-    }
+    # Mark as first message sent
+    bot.user_first_message.add(user_id)
     
-    success = await bot.ws_manager.send_message(ws_message)
+    # Get category
+    category = bot.get_channel(bot.config.ticket_category_id)
+    if not category:
+        await message.author.send("❌ Support system unavailable")
+        return
     
-    if success:
-        await message.author.send("✅ Message sent. Support will reply shortly.")
-        logger.info(f"DM from {message.author.name} sent to WebSocket")
-    else:
-        await message.author.send("❌ Failed to send. Please try again.")
+    # Create ticket channel
+    channel_name = f"ticket-{message.author.name.lower().replace(' ', '-')}"
+    
+    # Check if channel already exists
+    channel = discord.utils.get(category.text_channels, name=channel_name)
+    
+    if not channel:
+        try:
+            # Create channel
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+                guild.get_role(bot.config.staff_role_id): discord.PermissionOverwrite(read_messages=True),
+            }
+            
+            channel = await guild.create_text_channel(
+                channel_name,
+                category=category,
+                overwrites=overwrites,
+                reason=f"Support ticket from {message.author.name}"
+            )
+            logger.info(f"Created ticket channel: {channel_name}")
+        except Exception as e:
+            logger.error(f"Failed to create channel: {e}")
+            await message.author.send("❌ Failed to create support ticket")
+            bot.user_first_message.discard(user_id)
+            return
+    
+    # Create ticket in manager
+    ticket = await bot.ticket_manager.create(user_id, message.author.name, channel.id)
+    
+    # Send initial message to user
+    embed = discord.Embed(
+        title="🌐 RAWr.xyz Support",
+        description="Thanks for reaching out! Our support team will assist you shortly.\n\nFor script updates and links, use `/updates` or visit **rawrs.zapto.org**",
+        color=0xef4444
+    )
+    embed.add_field(name="Status", value="⏳ Waiting for support staff...", inline=False)
+    embed.set_footer(text="Your support ticket has been created")
+    
+    try:
+        await message.author.send(embed=embed)
+    except Exception as e:
+        logger.error(f"Failed to send embed to user: {e}")
+    
+    # Send message to staff channel with claim button
+    staff_embed = discord.Embed(
+        title="📋 New Support Ticket",
+        description=f"**User:** {message.author.name} ({message.author.id})\n**Message:** {message.content}",
+        color=0x3b82f6,
+        timestamp=datetime.utcnow()
+    )
+    staff_embed.set_footer(text=f"Ticket ID: {user_id}")
+    
+    # Create claim button
+    class ClaimButton(discord.ui.View):
+        def __init__(self, ticket_user_id: int):
+            super().__init__(timeout=None)
+            self.ticket_user_id = ticket_user_id
+        
+        @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.success, emoji="✋")
+        async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            """Claim ticket"""
+            # Check if staff
+            user_roles = {role.id for role in interaction.user.roles}
+            if bot.config.owner_id != interaction.user.id and not (
+                bot.config.staff_role_id in user_roles or bot.config.manager_role_id in user_roles
+            ):
+                await interaction.response.send_message("❌ You don't have permission to claim tickets", ephemeral=True)
+                return
+            
+            # Claim ticket
+            ticket = await bot.ticket_manager.claim(
+                self.ticket_user_id,
+                interaction.user.id,
+                interaction.user.name
+            )
+            
+            if not ticket:
+                await interaction.response.send_message("❌ Ticket not found", ephemeral=True)
+                return
+            
+            # Get user rank
+            rank = "Manager"
+            if bot.config.manager_role_id in user_roles:
+                rank = "Manager"
+            elif bot.config.staff_role_id in user_roles:
+                rank = "Staff"
+            else:
+                rank = "Owner"
+            
+            # Update button - disable it
+            button.disabled = True
+            await interaction.message.edit(view=self)
+            
+            # Send claim confirmation to staff
+            await interaction.response.send_message(
+                f"✅ You've claimed this ticket! Channel: <#{ticket.channel_id}>",
+                ephemeral=True
+            )
+            
+            # Send message to user DM
+            try:
+                user = await bot.fetch_user(self.ticket_user_id)
+                claim_embed = discord.Embed(
+                    title="✅ Support Staff Assigned",
+                    description=f"**Staff Member:** {interaction.user.name}\n**Rank:** {rank}\n\nA staff member has claimed your ticket and will be assisting you shortly!",
+                    color=0x22c55e
+                )
+                claim_embed.add_field(name="What's Next?", value="The staff member will respond to your message in this DM shortly.", inline=False)
+                await user.send(embed=claim_embed)
+            except Exception as e:
+                logger.error(f"Failed to send claim notification to user: {e}")
+            
+            # Send message to ticket channel
+            ticket_embed = discord.Embed(
+                title=f"Ticket Claimed by {interaction.user.name}",
+                description=f"This ticket has been claimed.\n\n**Rank:** {rank}\n**Response Time:** Usually within minutes",
+                color=0x22c55e
+            )
+            
+            try:
+                channel = bot.get_channel(ticket.channel_id)
+                if channel:
+                    await channel.send(embed=ticket_embed)
+            except Exception as e:
+                logger.error(f"Failed to send to ticket channel: {e}")
+    
+    try:
+        await channel.send(embed=staff_embed, view=ClaimButton(user_id))
+        logger.info(f"Support ticket created for {message.author.name}")
+    except Exception as e:
+        logger.error(f"Failed to send to ticket channel: {e}")
 
 # --- PERMISSION CHECKS ---
 
@@ -640,11 +794,10 @@ def is_manager() -> app_commands.check:
 async def setup_commands(bot: RawrBot) -> None:
     """Register all slash commands"""
     
-    @bot.tree.command(name="reply", description="Reply to a web chat")
+    @bot.tree.command(name="reply", description="Reply to a support ticket")
     @is_staff()
     async def reply(interaction: discord.Interaction, content: str) -> None:
-        """Reply to a web chat message"""
-        # Rate limit
+        """Reply to a support ticket"""
         allowed, reason = bot.rate_limiter.can_send(interaction.user.id, content)
         if not allowed:
             await interaction.response.send_message(f"❌ {reason}", ephemeral=True)
@@ -652,44 +805,47 @@ async def setup_commands(bot: RawrBot) -> None:
         
         await interaction.response.defer()
         
-        # Validate channel
-        if not interaction.channel or not interaction.channel.name.startswith("web-"):
-            await interaction.followup.send("❌ Use in web channels only")
+        # Get channel name to find user
+        if not interaction.channel or not interaction.channel.name.startswith("ticket-"):
+            await interaction.followup.send("❌ Use in ticket channels only")
             return
         
-        # Extract username
-        username = interaction.channel.name.replace("web-", "").replace("-", " ").title()
+        # Extract user ID from ticket
+        channel_name = interaction.channel.name
         
-        # Send via WebSocket
+        # Send reply through WebSocket
         message = {
             "type": MessageType.REPLY.value,
             "user": interaction.user.display_name,
             "user_id": interaction.user.id,
             "text": content,
             "origin": MessageOrigin.DISCORD.value,
-            "target_user": username,
-            "channel_id": interaction.channel.id,
         }
         
         success = await bot.ws_manager.send_message(message)
         
-        if success:
-            embed = discord.Embed(
-                description=content,
-                color=0x00ff00,
-                timestamp=datetime.utcnow()
-            )
-            embed.set_author(name=f"💬 Reply to {username}")
-            embed.set_footer(text=f"By {interaction.user.display_name}")
-            await interaction.followup.send(embed=embed)
-        else:
-            await interaction.followup.send("❌ Failed to send (WebSocket error)")
+        # Send to channel
+        embed = discord.Embed(
+            description=content,
+            color=0x00ff00,
+            timestamp=datetime.utcnow()
+        )
+        embed.set_author(name=f"💬 {interaction.user.display_name}")
+        embed.set_footer(text=f"Support Response")
+        
+        try:
+            await interaction.channel.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Failed to send reply: {e}")
+        
+        await interaction.followup.send("✅ Reply sent!", ephemeral=True)
+        logger.info(f"Staff {interaction.user.name} replied in {channel_name}")
     
-    @bot.tree.command(name="close", description="Close current ticket")
+    @bot.tree.command(name="close", description="Close a support ticket")
     @is_manager()
     async def close(interaction: discord.Interaction) -> None:
-        """Close and delete current channel"""
-        if not interaction.channel or interaction.channel.category_id != bot.config.ticket_category_id:
+        """Close ticket"""
+        if not interaction.channel or not interaction.channel.category_id != bot.config.ticket_category_id:
             await interaction.response.send_message("❌ Not a ticket channel", ephemeral=True)
             return
         
@@ -699,7 +855,7 @@ async def setup_commands(bot: RawrBot) -> None:
         channel_name = interaction.channel.name
         try:
             await interaction.channel.delete()
-            logger.info(f"Closed channel: {channel_name}")
+            logger.info(f"Closed ticket: {channel_name}")
         except discord.Forbidden:
             logger.error(f"Permission denied closing {channel_name}")
             await interaction.followup.send("❌ Permission denied")
@@ -710,9 +866,11 @@ async def setup_commands(bot: RawrBot) -> None:
         """Clear rate limit cache"""
         if user_id:
             bot.rate_limiter.clear_user(user_id)
+            bot.user_first_message.discard(user_id)
             msg = f"✅ Cleared cache for user {user_id}"
         else:
             bot.rate_limiter.clear_all()
+            bot.user_first_message.clear()
             msg = "✅ Cleared all caches"
         
         await interaction.response.send_message(msg, ephemeral=True)
@@ -733,8 +891,8 @@ async def setup_commands(bot: RawrBot) -> None:
         embed.add_field(name="⚡ Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
         embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
         embed.add_field(name="🔌 WebSocket", value=ws_status, inline=True)
+        embed.add_field(name="🎟️ Open Tickets", value=str(len(bot.ticket_manager.tickets)), inline=True)
         embed.add_field(name="💬 Cached IDs", value=str(len(bot.ws_manager.processed_ids)), inline=True)
-        embed.add_field(name="🚦 Rate Limited", value=str(len(bot.rate_limiter.user_messages)), inline=True)
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -766,6 +924,30 @@ async def setup_commands(bot: RawrBot) -> None:
             title="🌐 Rawr.xyz",
             description=f"[Visit Website]({bot.config.website_url})\nLive chat support available",
             color=0xef4444
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    @bot.tree.command(name="updates", description="Get latest updates")
+    async def updates(interaction: discord.Interaction) -> None:
+        """Show latest updates and links"""
+        embed = discord.Embed(
+            title="📦 Latest Updates",
+            color=0xef4444
+        )
+        embed.add_field(
+            name="Script Updates",
+            value=f"Visit [GitHub Repository](https://github.com/imcomingforyou6959-gif/rawr.xyz) for the latest version",
+            inline=False
+        )
+        embed.add_field(
+            name="Support",
+            value=f"For help, visit [RAWr.xyz]({bot.config.website_url}) or join our [Discord](https://discord.gg/eMpUQzFrNG)",
+            inline=False
+        )
+        embed.add_field(
+            name="Changelog",
+            value="v2.0.0 - Major stability improvements and new features",
+            inline=False
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -810,6 +992,7 @@ async def main() -> None:
         config = Config.from_env()
         bot = RawrBot(config)
         
+        await setup_events(bot)
         await setup_commands(bot)
         await setup_error_handlers(bot)
         
