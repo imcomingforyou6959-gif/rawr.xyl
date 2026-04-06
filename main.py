@@ -104,7 +104,6 @@ class TicketManager:
     async def create(self, user_id: int, user_name: str, channel_id: int) -> Optional[Ticket]:
         """Create a new ticket (if doesn't exist)"""
         async with self.lock:
-            # Only create if doesn't exist
             if user_id in self.tickets:
                 return self.tickets[user_id]
             
@@ -179,7 +178,6 @@ class RateLimiter:
         cleaned_users = 0
         cleaned_hashes = 0
         
-        # Clean user message history
         for user_id in list(self.user_messages.keys()):
             while self.user_messages[user_id] and current_time - self.user_messages[user_id][0] > 60:
                 self.user_messages[user_id].popleft()
@@ -188,7 +186,6 @@ class RateLimiter:
                 del self.user_messages[user_id]
                 cleaned_users += 1
         
-        # Clean expired message hashes
         for msg_hash in list(self.message_hashes.keys()):
             if current_time - self.message_hashes[msg_hash] > self.config.duplicate_window_seconds:
                 del self.message_hashes[msg_hash]
@@ -201,34 +198,29 @@ class RateLimiter:
         """Check if user can send a message"""
         current_time = time.time()
         
-        # Initialize user if not tracked
         if user_id not in self.user_messages:
             self.user_messages[user_id] = deque(maxlen=self.config.max_messages_per_minute)
         
         user_deque = self.user_messages[user_id]
         
-        # Check messages per minute limit
         if len(user_deque) >= self.config.max_messages_per_minute:
             oldest = user_deque[0]
             if current_time - oldest < 60:
                 remaining = 60 - (current_time - oldest)
                 return False, f"Rate limit: {self.config.max_messages_per_minute} messages per minute. Retry in {remaining:.0f}s"
         
-        # Check cooldown between messages
         if user_deque:
             time_since_last = current_time - user_deque[-1]
             if time_since_last < self.config.rate_limit_seconds:
                 wait_time = self.config.rate_limit_seconds - time_since_last
                 return False, f"Wait {wait_time:.1f}s before sending another message"
         
-        # Check for duplicate message
         message_hash = self._hash_message(user_id, message_content)
         if message_hash in self.message_hashes:
             time_since_duplicate = current_time - self.message_hashes[message_hash]
             if time_since_duplicate < self.config.duplicate_window_seconds:
                 return False, "Duplicate message detected within 30s"
         
-        # Message allowed
         user_deque.append(current_time)
         self.message_hashes[message_hash] = current_time
         
@@ -499,7 +491,7 @@ class RawrBot(commands.Bot):
         self.ws_manager = WebSocketManager(self, config)
         self.rate_limiter = RateLimiter(config)
         self.ticket_manager = TicketManager()
-        self.user_first_message: Set[int] = set()  # Track who sent first message
+        self.user_first_message: Set[int] = set()
         
         super().__init__(command_prefix="!", intents=intents)
     
@@ -597,45 +589,35 @@ async def setup_events(bot: RawrBot) -> None:
         await bot.process_commands(message)
 
 async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
-    """Handle DM messages - IMPROVED NO SPAM VERSION"""
+    """Handle DM messages"""
     user_id = message.author.id
     
-    # Check if user already has ticket/sent first message
     if user_id in bot.user_first_message:
-        # User already sent a message, ignore further DMs until staff claims
         logger.debug(f"Ignoring repeat DM from {message.author.name} (ticket pending)")
         return
     
-    # Rate limit check
     allowed, reason = bot.rate_limiter.can_send(user_id, message.content)
     if not allowed:
         await message.author.send(f"❌ {reason}")
         return
     
-    # Validate guild
     guild = bot.get_guild(bot.config.guild_id)
     if not guild:
         await message.author.send("❌ Support system unavailable")
         return
     
-    # Mark as first message sent
     bot.user_first_message.add(user_id)
     
-    # Get category
     category = bot.get_channel(bot.config.ticket_category_id)
     if not category:
         await message.author.send("❌ Support system unavailable")
         return
     
-    # Create ticket channel
     channel_name = f"ticket-{message.author.name.lower().replace(' ', '-')}"
-    
-    # Check if channel already exists
     channel = discord.utils.get(category.text_channels, name=channel_name)
     
     if not channel:
         try:
-            # Create channel
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(read_messages=False),
                 guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
@@ -655,10 +637,8 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             bot.user_first_message.discard(user_id)
             return
     
-    # Create ticket in manager
     ticket = await bot.ticket_manager.create(user_id, message.author.name, channel.id)
     
-    # Send initial message to user
     embed = discord.Embed(
         title="🌐 RAWr.xyz Support",
         description="Thanks for reaching out! Our support team will assist you shortly.\n\nFor script updates and links, use `/updates` or visit **rawrs.zapto.org**",
@@ -672,7 +652,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
     except Exception as e:
         logger.error(f"Failed to send embed to user: {e}")
     
-    # Send message to staff channel with claim button
     staff_embed = discord.Embed(
         title="📋 New Support Ticket",
         description=f"**User:** {message.author.name} ({message.author.id})\n**Message:** {message.content}",
@@ -681,7 +660,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
     )
     staff_embed.set_footer(text=f"Ticket ID: {user_id}")
     
-    # Create claim button
     class ClaimButton(discord.ui.View):
         def __init__(self, ticket_user_id: int):
             super().__init__(timeout=None)
@@ -690,7 +668,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
         @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.success, emoji="✋")
         async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             """Claim ticket"""
-            # Check if staff
             user_roles = {role.id for role in interaction.user.roles}
             if bot.config.owner_id != interaction.user.id and not (
                 bot.config.staff_role_id in user_roles or bot.config.manager_role_id in user_roles
@@ -698,7 +675,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
                 await interaction.response.send_message("❌ You don't have permission to claim tickets", ephemeral=True)
                 return
             
-            # Claim ticket
             ticket = await bot.ticket_manager.claim(
                 self.ticket_user_id,
                 interaction.user.id,
@@ -709,7 +685,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
                 await interaction.response.send_message("❌ Ticket not found", ephemeral=True)
                 return
             
-            # Get user rank
             rank = "Manager"
             if bot.config.manager_role_id in user_roles:
                 rank = "Manager"
@@ -718,17 +693,14 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             else:
                 rank = "Owner"
             
-            # Update button - disable it
             button.disabled = True
             await interaction.message.edit(view=self)
             
-            # Send claim confirmation to staff
             await interaction.response.send_message(
                 f"✅ You've claimed this ticket! Channel: <#{ticket.channel_id}>",
                 ephemeral=True
             )
             
-            # Send message to user DM
             try:
                 user = await bot.fetch_user(self.ticket_user_id)
                 claim_embed = discord.Embed(
@@ -741,7 +713,6 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             except Exception as e:
                 logger.error(f"Failed to send claim notification to user: {e}")
             
-            # Send message to ticket channel
             ticket_embed = discord.Embed(
                 title=f"Ticket Claimed by {interaction.user.name}",
                 description=f"This ticket has been claimed.\n\n**Rank:** {rank}\n**Response Time:** Usually within minutes",
@@ -749,9 +720,9 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             )
             
             try:
-                channel = bot.get_channel(ticket.channel_id)
-                if channel:
-                    await channel.send(embed=ticket_embed)
+                ch = bot.get_channel(ticket.channel_id)
+                if ch:
+                    await ch.send(embed=ticket_embed)
             except Exception as e:
                 logger.error(f"Failed to send to ticket channel: {e}")
     
@@ -805,15 +776,12 @@ async def setup_commands(bot: RawrBot) -> None:
         
         await interaction.response.defer()
         
-        # Get channel name to find user
         if not interaction.channel or not interaction.channel.name.startswith("ticket-"):
             await interaction.followup.send("❌ Use in ticket channels only")
             return
         
-        # Extract user ID from ticket
         channel_name = interaction.channel.name
         
-        # Send reply through WebSocket
         message = {
             "type": MessageType.REPLY.value,
             "user": interaction.user.display_name,
@@ -824,7 +792,6 @@ async def setup_commands(bot: RawrBot) -> None:
         
         success = await bot.ws_manager.send_message(message)
         
-        # Send to channel
         embed = discord.Embed(
             description=content,
             color=0x00ff00,
@@ -845,10 +812,12 @@ async def setup_commands(bot: RawrBot) -> None:
     @is_manager()
     async def close(interaction: discord.Interaction) -> None:
         """Close ticket"""
-        if not interaction.channel or not interaction.channel.category_id != bot.config.ticket_category_id:
+        # FIX: corrected the logic — block if NOT in ticket category
+        if not interaction.channel or interaction.channel.category_id != bot.config.ticket_category_id:
             await interaction.response.send_message("❌ Not a ticket channel", ephemeral=True)
             return
         
+        # FIX: respond first, then delete — avoids double-response error
         await interaction.response.send_message("🔒 Closing in 5s...")
         await asyncio.sleep(5)
         
@@ -858,7 +827,7 @@ async def setup_commands(bot: RawrBot) -> None:
             logger.info(f"Closed ticket: {channel_name}")
         except discord.Forbidden:
             logger.error(f"Permission denied closing {channel_name}")
-            await interaction.followup.send("❌ Permission denied")
+            await interaction.followup.send("❌ Permission denied", ephemeral=True)
     
     @bot.tree.command(name="clear_cache", description="Clear rate limits")
     @is_manager()
@@ -963,26 +932,37 @@ async def setup_error_handlers(bot: RawrBot) -> None:
     ) -> None:
         """Handle slash command errors"""
         if isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message(
-                "⛔ Access denied: Staff/Manager role required",
-                ephemeral=True
-            )
+            # Use followup if already responded, otherwise respond normally
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "⛔ Access denied: Staff/Manager role required",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    "⛔ Access denied: Staff/Manager role required",
+                    ephemeral=True
+                )
         elif isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"⏰ Try again in {error.retry_after:.1f}s",
-                ephemeral=True
-            )
-        elif isinstance(error, app_commands.MissingRequiredArgument):
-            await interaction.response.send_message(
-                f"❌ Missing argument: {error.param}",
-                ephemeral=True
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    f"⏰ Try again in {error.retry_after:.1f}s",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"⏰ Try again in {error.retry_after:.1f}s",
+                    ephemeral=True
+                )
         else:
             logger.error(f"Command error: {error}", exc_info=True)
-            await interaction.response.send_message(
-                "❌ An error occurred",
-                ephemeral=True
-            )
+            if interaction.response.is_done():
+                await interaction.followup.send("❌ An error occurred", ephemeral=True)
+            else:
+                await interaction.response.send_message(
+                    "❌ An error occurred",
+                    ephemeral=True
+                )
 
 # --- MAIN EXECUTION ---
 
