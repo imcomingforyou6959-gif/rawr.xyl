@@ -125,7 +125,7 @@ class TicketManager:
         """Claim a ticket"""
         async with self.lock:
             ticket = self.tickets.get(user_id)
-            if not ticket:
+            if not ticket or ticket.claimed_by is not None:
                 return None
             
             ticket.claimed_by = staff_id
@@ -154,7 +154,7 @@ class RateLimiter:
     def __init__(self, config: Config):
         self.config = config
         self.user_messages: Dict[int, deque] = {}
-        self.message_hashes: Dict[str, float] = {}
+        self.message_hashes: Set[str] = set()
         self._cleanup_task: Optional[asyncio.Task] = None
     
     def start_cleanup(self) -> None:
@@ -176,7 +176,6 @@ class RateLimiter:
         """Remove expired rate limit entries"""
         current_time = time.time()
         cleaned_users = 0
-        cleaned_hashes = 0
         
         for user_id in list(self.user_messages.keys()):
             while self.user_messages[user_id] and current_time - self.user_messages[user_id][0] > 60:
@@ -186,13 +185,12 @@ class RateLimiter:
                 del self.user_messages[user_id]
                 cleaned_users += 1
         
-        for msg_hash in list(self.message_hashes.keys()):
-            if current_time - self.message_hashes[msg_hash] > self.config.duplicate_window_seconds:
-                del self.message_hashes[msg_hash]
-                cleaned_hashes += 1
+        # Clear old message hashes (don't track by time, just keep set manageable)
+        if len(self.message_hashes) > 10000:
+            self.message_hashes.clear()
         
-        if cleaned_users > 0 or cleaned_hashes > 0:
-            logger.debug(f"Cleaned {cleaned_users} users, {cleaned_hashes} message hashes")
+        if cleaned_users > 0:
+            logger.debug(f"Cleaned {cleaned_users} users from rate limiter")
     
     def can_send(self, user_id: int, message_content: str) -> Tuple[bool, str]:
         """Check if user can send a message"""
@@ -217,14 +215,18 @@ class RateLimiter:
         
         message_hash = self._hash_message(user_id, message_content)
         if message_hash in self.message_hashes:
-            time_since_duplicate = current_time - self.message_hashes[message_hash]
-            if time_since_duplicate < self.config.duplicate_window_seconds:
-                return False, "Duplicate message detected within 30s"
-        
-        user_deque.append(current_time)
-        self.message_hashes[message_hash] = current_time
+            return False, "Duplicate message detected"
         
         return True, "OK"
+    
+    def record_message(self, user_id: int, message_content: str) -> None:
+        """Record a message after it's successfully processed"""
+        if user_id not in self.user_messages:
+            self.user_messages[user_id] = deque(maxlen=self.config.max_messages_per_minute)
+        
+        self.user_messages[user_id].append(time.time())
+        message_hash = self._hash_message(user_id, message_content)
+        self.message_hashes.add(message_hash)
     
     @staticmethod
     def _hash_message(user_id: int, content: str) -> str:
@@ -257,8 +259,6 @@ class WebSocketManager:
     RETRY_DELAY = 5
     HEARTBEAT_INTERVAL = 30
     HEARTBEAT_TIMEOUT = 45
-    PROCESSED_IDS_MAX = 1000
-    PROCESSED_IDS_TRIM = 500
     
     def __init__(self, bot: 'RawrBot', config: Config):
         self.bot = bot
@@ -269,6 +269,8 @@ class WebSocketManager:
         self.is_connected = False
         self._listen_task: Optional[asyncio.Task] = None
         self._heartbeat_task: Optional[asyncio.Task] = None
+        self._processing_lock = asyncio.Lock()
+        self._web_channel_locks: Dict[str, asyncio.Lock] = {}
     
     async def connect(self) -> bool:
         """Connect to WebSocket server with exponential backoff"""
@@ -359,14 +361,12 @@ class WebSocketManager:
             logger.warning("Received message without ID")
             return
         
-        if msg_id in self.processed_ids:
-            logger.debug(f"Skipping duplicate message: {msg_id}")
-            return
-        
-        self.processed_ids.add(msg_id)
-        
-        if len(self.processed_ids) > self.PROCESSED_IDS_MAX:
-            self.processed_ids = set(list(self.processed_ids)[-self.PROCESSED_IDS_TRIM:])
+        async with self._processing_lock:
+            if msg_id in self.processed_ids:
+                logger.debug(f"Skipping duplicate message: {msg_id}")
+                return
+            
+            self.processed_ids.add(msg_id)
         
         msg_type = data.get('type')
         msg_origin = data.get('origin')
@@ -390,11 +390,16 @@ class WebSocketManager:
         user_name = msg.get('user', 'unknown')
         channel_name = f"web-{user_name.lower().replace(' ', '-')}"
         
-        channel = discord.utils.get(category.text_channels, name=channel_name)
-        if not channel:
-            channel = await self._create_web_channel(guild, category, channel_name, user_name)
+        # Use a lock per channel name to prevent race conditions
+        if channel_name not in self._web_channel_locks:
+            self._web_channel_locks[channel_name] = asyncio.Lock()
+        
+        async with self._web_channel_locks[channel_name]:
+            channel = discord.utils.get(category.text_channels, name=channel_name)
             if not channel:
-                return
+                channel = await self._create_web_channel(guild, category, channel_name, user_name)
+                if not channel:
+                    return
         
         embed = discord.Embed(
             description=msg.get('text', ''),
@@ -429,7 +434,6 @@ class WebSocketManager:
                 overwrites=overwrites,
                 reason=f"Web chat from {user_name}"
             )
-            await channel.send(f"🚀 **Chat Session Started:** `{user_name}`")
             logger.info(f"Created web channel: {channel_name}")
             return channel
         except discord.Forbidden:
@@ -598,20 +602,29 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
     
     allowed, reason = bot.rate_limiter.can_send(user_id, message.content)
     if not allowed:
-        await message.author.send(f"❌ {reason}")
+        try:
+            await message.author.send(f"❌ {reason}")
+        except Exception as e:
+            logger.error(f"Failed to send rate limit message: {e}")
         return
     
     guild = bot.get_guild(bot.config.guild_id)
     if not guild:
-        await message.author.send("❌ Support system unavailable")
+        try:
+            await message.author.send("❌ Support system unavailable")
+        except Exception as e:
+            logger.error(f"Failed to send unavailable message: {e}")
         return
-    
-    bot.user_first_message.add(user_id)
     
     category = bot.get_channel(bot.config.ticket_category_id)
     if not category:
-        await message.author.send("❌ Support system unavailable")
+        try:
+            await message.author.send("❌ Support system unavailable")
+        except Exception as e:
+            logger.error(f"Failed to send unavailable message: {e}")
         return
+    
+    bot.user_first_message.add(user_id)
     
     channel_name = f"ticket-{message.author.name.lower().replace(' ', '-')}"
     channel = discord.utils.get(category.text_channels, name=channel_name)
@@ -633,11 +646,17 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             logger.info(f"Created ticket channel: {channel_name}")
         except Exception as e:
             logger.error(f"Failed to create channel: {e}")
-            await message.author.send("❌ Failed to create support ticket")
+            try:
+                await message.author.send("❌ Failed to create support ticket")
+            except Exception as e:
+                logger.error(f"Failed to send error message: {e}")
             bot.user_first_message.discard(user_id)
             return
     
     ticket = await bot.ticket_manager.create(user_id, message.author.name, channel.id)
+    
+    # Only record the rate limit AFTER successful ticket creation
+    bot.rate_limiter.record_message(user_id, message.content)
     
     embed = discord.Embed(
         title="🌐 RAWr.xyz Support",
@@ -664,10 +683,15 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
         def __init__(self, ticket_user_id: int):
             super().__init__(timeout=None)
             self.ticket_user_id = ticket_user_id
+            self.claimed = False
         
         @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.success, emoji="✋")
         async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
             """Claim ticket"""
+            if self.claimed:
+                await interaction.response.send_message("❌ This ticket has already been claimed", ephemeral=True)
+                return
+            
             user_roles = {role.id for role in interaction.user.roles}
             if bot.config.owner_id != interaction.user.id and not (
                 bot.config.staff_role_id in user_roles or bot.config.manager_role_id in user_roles
@@ -682,8 +706,10 @@ async def handle_dm(bot: RawrBot, message: discord.Message) -> None:
             )
             
             if not ticket:
-                await interaction.response.send_message("❌ Ticket not found", ephemeral=True)
+                await interaction.response.send_message("❌ Ticket not found or already claimed", ephemeral=True)
                 return
+            
+            self.claimed = True
             
             rank = "Manager"
             if bot.config.manager_role_id in user_roles:
@@ -780,7 +806,7 @@ async def setup_commands(bot: RawrBot) -> None:
             await interaction.followup.send("❌ Use in ticket channels only")
             return
         
-        channel_name = interaction.channel.name
+        bot.rate_limiter.record_message(interaction.user.id, content)
         
         message = {
             "type": MessageType.REPLY.value,
@@ -806,18 +832,16 @@ async def setup_commands(bot: RawrBot) -> None:
             logger.error(f"Failed to send reply: {e}")
         
         await interaction.followup.send("✅ Reply sent!", ephemeral=True)
-        logger.info(f"Staff {interaction.user.name} replied in {channel_name}")
+        logger.info(f"Staff {interaction.user.name} replied")
     
     @bot.tree.command(name="close", description="Close a support ticket")
     @is_manager()
     async def close(interaction: discord.Interaction) -> None:
         """Close ticket"""
-        # FIX: corrected the logic — block if NOT in ticket category
         if not interaction.channel or interaction.channel.category_id != bot.config.ticket_category_id:
             await interaction.response.send_message("❌ Not a ticket channel", ephemeral=True)
             return
         
-        # FIX: respond first, then delete — avoids double-response error
         await interaction.response.send_message("🔒 Closing in 5s...")
         await asyncio.sleep(5)
         
@@ -861,7 +885,7 @@ async def setup_commands(bot: RawrBot) -> None:
         embed.add_field(name="🌐 Guilds", value=str(len(bot.guilds)), inline=True)
         embed.add_field(name="🔌 WebSocket", value=ws_status, inline=True)
         embed.add_field(name="🎟️ Open Tickets", value=str(len(bot.ticket_manager.tickets)), inline=True)
-        embed.add_field(name="💬 Cached IDs", value=str(len(bot.ws_manager.processed_ids)), inline=True)
+        embed.add_field(name="📋 Processed IDs", value=str(len(bot.ws_manager.processed_ids)), inline=True)
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -932,7 +956,6 @@ async def setup_error_handlers(bot: RawrBot) -> None:
     ) -> None:
         """Handle slash command errors"""
         if isinstance(error, app_commands.CheckFailure):
-            # Use followup if already responded, otherwise respond normally
             if interaction.response.is_done():
                 await interaction.followup.send(
                     "⛔ Access denied: Staff/Manager role required",
