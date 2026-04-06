@@ -39,6 +39,28 @@ MANAGER_ROLE_ID = int(os.getenv('MANAGER_ROLE_ID', '0'))
 RATE_LIMIT_SECONDS = 5
 MAX_MESSAGES_PER_MINUTE = 12
 
+# --- BLACKLIST SYSTEM ---
+blacklisted_users: Set[int] = set()
+BLACKLIST_FILE = "blacklist.json"
+
+def load_blacklist():
+    global blacklisted_users
+    try:
+        if os.path.exists(BLACKLIST_FILE):
+            with open(BLACKLIST_FILE, 'r') as f:
+                data = json.load(f)
+                blacklisted_users = set(data.get('users', []))
+                logger.info(f"Loaded blacklist: {len(blacklisted_users)} users")
+    except Exception as e:
+        logger.error(f"Failed to load blacklist: {e}")
+
+def save_blacklist():
+    try:
+        with open(BLACKLIST_FILE, 'w') as f:
+            json.dump({'users': list(blacklisted_users)}, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save blacklist: {e}")
+
 # --- STATS TRACKING ---
 total_tickets_handled = 0
 total_messages_processed = 0
@@ -81,9 +103,10 @@ class TicketStatus(Enum):
 class TicketType(Enum):
     WEB = "web"
     DM = "dm"
+    FORCED = "forced"
 
 class Ticket:
-    def __init__(self, user_id: int, user_name: str, channel_id: int, ticket_type: TicketType):
+    def __init__(self, user_id: int, user_name: str, channel_id: int, ticket_type: TicketType, created_by: Optional[str] = None):
         self.user_id = user_id
         self.user_name = user_name
         self.channel_id = channel_id
@@ -97,21 +120,36 @@ class Ticket:
         self.resolved_at: Optional[datetime] = None
         self.closed_at: Optional[datetime] = None
         self.message_count = 0
-        self.transcript: list = []
+        self.transcript: List[Dict] = []
         self.review_sent = False
+        self.created_by = created_by
+        self.history: List[Dict] = []  # Track ticket history
 
 class TicketManager:
     def __init__(self):
         self.tickets: Dict[int, Ticket] = {}
         self.channel_to_user: Dict[int, int] = {}
+        self.user_history: Dict[int, List[Dict]] = {}
         self.lock = asyncio.Lock()
         self.handled_count = 0
     
-    async def create_ticket(self, user_id: int, user_name: str, channel_id: int, ticket_type: TicketType) -> Ticket:
+    async def create_ticket(self, user_id: int, user_name: str, channel_id: int, ticket_type: TicketType, created_by: Optional[str] = None) -> Ticket:
         async with self.lock:
-            ticket = Ticket(user_id, user_name, channel_id, ticket_type)
+            ticket = Ticket(user_id, user_name, channel_id, ticket_type, created_by)
             self.tickets[user_id] = ticket
             self.channel_to_user[channel_id] = user_id
+            
+            # Add to user history
+            if user_id not in self.user_history:
+                self.user_history[user_id] = []
+            self.user_history[user_id].append({
+                'ticket_id': channel_id,
+                'type': ticket_type.value,
+                'created_at': ticket.created_at.isoformat(),
+                'status': ticket.status.value,
+                'created_by': created_by
+            })
+            
             logger.info(f"📫 Ticket created for {user_name} ({user_id})")
             return ticket
     
@@ -135,6 +173,12 @@ class TicketManager:
                 ticket.claimed_by_name = staff_name
                 ticket.claimed_by_role = staff_role
                 ticket.claimed_at = datetime.utcnow()
+                ticket.history.append({
+                    'action': 'claimed',
+                    'by': staff_name,
+                    'role': staff_role,
+                    'at': datetime.utcnow().isoformat()
+                })
                 logger.info(f"✅ Ticket claimed by {staff_name} ({staff_role})")
                 return ticket
             return None
@@ -146,6 +190,10 @@ class TicketManager:
                 ticket.status = TicketStatus.RESOLVED
                 ticket.resolved_at = datetime.utcnow()
                 self.handled_count += 1
+                ticket.history.append({
+                    'action': 'resolved',
+                    'at': datetime.utcnow().isoformat()
+                })
                 logger.info(f"✅ Ticket resolved for {ticket.user_name}")
                 return ticket
             return None
@@ -158,14 +206,47 @@ class TicketManager:
                     self.channel_to_user.pop(channel_id, None)
                 ticket.status = TicketStatus.CLOSED
                 ticket.closed_at = datetime.utcnow()
+                ticket.history.append({
+                    'action': 'closed',
+                    'at': datetime.utcnow().isoformat()
+                })
                 logger.info(f"🔒 Ticket closed for {ticket.user_name}")
                 return ticket
             return None
     
-    async def add_message(self, user_id: int):
+    async def force_transfer(self, user_id: int, new_staff_id: int, new_staff_name: str, new_staff_role: str) -> Optional[Ticket]:
+        async with self.lock:
+            ticket = self.tickets.get(user_id)
+            if ticket:
+                old_staff = f"{ticket.claimed_by_name} ({ticket.claimed_by_role})" if ticket.claimed_by_name else "Unclaimed"
+                ticket.claimed_by = new_staff_id
+                ticket.claimed_by_name = new_staff_name
+                ticket.claimed_by_role = new_staff_role
+                ticket.claimed_at = datetime.utcnow()
+                if ticket.status == TicketStatus.OPEN:
+                    ticket.status = TicketStatus.CLAIMED
+                ticket.history.append({
+                    'action': 'force_transferred',
+                    'from': old_staff,
+                    'to': f"{new_staff_name} ({new_staff_role})",
+                    'at': datetime.utcnow().isoformat()
+                })
+                logger.info(f"🔄 Ticket force transferred to {new_staff_name}")
+                return ticket
+            return None
+    
+    async def add_message(self, user_id: int, message: str):
         async with self.lock:
             if user_id in self.tickets:
                 self.tickets[user_id].message_count += 1
+                self.tickets[user_id].transcript.append({
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'message': message[:500]
+                })
+    
+    async def get_user_history(self, user_id: int) -> List[Dict]:
+        async with self.lock:
+            return self.user_history.get(user_id, [])
     
     async def get_all_open_tickets(self) -> list[Ticket]:
         async with self.lock:
@@ -358,7 +439,8 @@ async def health_check(request):
         'status': 'alive',
         'clients': len(sse_clients),
         'messages': len(message_queue),
-        'tickets': stats
+        'tickets': stats,
+        'blacklist': len(blacklisted_users)
     })
 
 # --- DISCORD BOT ---
@@ -377,6 +459,7 @@ class RawrBot(commands.Bot):
     
     async def setup_hook(self):
         load_whitelist()
+        load_blacklist()
         
         self.web_app = web.Application()
         self.web_app.router.add_get('/events', sse_endpoint)
@@ -396,6 +479,7 @@ class RawrBot(commands.Bot):
     
     async def close(self):
         save_whitelist()
+        save_blacklist()
         if self.runner:
             await self.runner.cleanup()
         await super().close()
@@ -408,15 +492,13 @@ class RawrBot(commands.Bot):
         claimed_tickets = stats['claimed']
         handled_total = stats['handled']
         
-        # Rotate between different status messages
         statuses = [
             f"rawrs.zapto.org",
-            f"{open_tickets} open tickets | {handled_total} handled",
+            f"{open_tickets} open | {handled_total} handled",
             f"{claimed_tickets} claimed | /help",
-            f"rawrs.zapto.org | {handled_total} tickets"
+            f"{len(blacklisted_users)} blacklisted | rawrs.zapto.org"
         ]
         
-        # Change status every 30 seconds
         current_status = statuses[int(time.time() / 30) % len(statuses)]
         
         await self.change_presence(
@@ -474,6 +556,78 @@ def get_staff_role_name(member: discord.Member) -> str:
         return "🛡️ Rawr Staff"
     else:
         return "👤 Staff Member"
+
+# --- BLACKLIST COMMANDS ---
+
+@bot.tree.command(name="blacklist", description="Blacklist a user from creating tickets")
+@is_whitelisted()
+@is_staff()
+async def blacklist_command(interaction: discord.Interaction, user: discord.User, reason: Optional[str] = None):
+    """Blacklist a user from creating tickets"""
+    if user.id == OWNER_ID:
+        await interaction.response.send_message("❌ Cannot blacklist the bot owner.", ephemeral=True)
+        return
+    
+    blacklisted_users.add(user.id)
+    save_blacklist()
+    
+    embed = discord.Embed(
+        title="🚫 User Blacklisted",
+        description=f"**User:** {user.mention}\n**User ID:** {user.id}\n**Reason:** {reason or 'No reason provided'}",
+        color=0xef4444,
+        timestamp=datetime.utcnow()
+    )
+    embed.set_footer(text=f"Blacklisted by {interaction.user.name}")
+    
+    await interaction.response.send_message(embed=embed)
+    logger.info(f"User {user.name} blacklisted by {interaction.user.name}")
+
+@bot.tree.command(name="unblacklist", description="Remove a user from the blacklist")
+@is_whitelisted()
+@is_staff()
+async def unblacklist_command(interaction: discord.Interaction, user: discord.User):
+    """Remove a user from the blacklist"""
+    if user.id not in blacklisted_users:
+        await interaction.response.send_message(f"❌ {user.mention} is not blacklisted.", ephemeral=True)
+        return
+    
+    blacklisted_users.discard(user.id)
+    save_blacklist()
+    
+    embed = discord.Embed(
+        title="✅ User Unblacklisted",
+        description=f"**User:** {user.mention}\n**User ID:** {user.id}",
+        color=0x00ff00,
+        timestamp=datetime.utcnow()
+    )
+    embed.set_footer(text=f"Unblacklisted by {interaction.user.name}")
+    
+    await interaction.response.send_message(embed=embed)
+    logger.info(f"User {user.name} unblacklisted by {interaction.user.name}")
+
+@bot.tree.command(name="blacklist_list", description="List all blacklisted users")
+@is_whitelisted()
+@is_staff()
+async def blacklist_list_command(interaction: discord.Interaction):
+    """List all blacklisted users"""
+    if not blacklisted_users:
+        await interaction.response.send_message("📭 No blacklisted users.", ephemeral=True)
+        return
+    
+    embed = discord.Embed(title="🚫 Blacklisted Users", color=0xef4444)
+    
+    users_list = []
+    for uid in blacklisted_users:
+        try:
+            user = await bot.fetch_user(uid)
+            users_list.append(f"• {user.name} ({uid})")
+        except:
+            users_list.append(f"• Unknown User ({uid})")
+    
+    embed.description = "\n".join(users_list)
+    embed.set_footer(text=f"Total: {len(blacklisted_users)} users")
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # --- WHITELIST COMMANDS ---
 
@@ -537,6 +691,146 @@ async def whitelist_list(interaction: discord.Interaction):
 
 # --- TICKET COMMANDS ---
 
+@bot.tree.command(name="force_ticket", description="Force open a ticket for a user")
+@is_whitelisted()
+@is_staff()
+async def force_ticket_command(interaction: discord.Interaction, user: discord.User, reason: Optional[str] = None):
+    """Force open a ticket for a user"""
+    # Check if user is blacklisted
+    if user.id in blacklisted_users:
+        await interaction.response.send_message(f"❌ {user.mention} is blacklisted and cannot create tickets.", ephemeral=True)
+        return
+    
+    # Check if user already has a ticket
+    existing_ticket = await ticket_manager.get_ticket_by_user(user.id)
+    if existing_ticket:
+        await interaction.response.send_message(f"❌ {user.mention} already has an open ticket.", ephemeral=True)
+        return
+    
+    await interaction.response.defer()
+    
+    # Create ticket channel
+    guild = interaction.guild
+    category = None
+    if TICKET_CATEGORY_ID:
+        category = bot.get_channel(TICKET_CATEGORY_ID)
+    
+    if not category:
+        category = discord.utils.get(guild.categories, name="SUPPORT TICKETS")
+        if not category:
+            category = await guild.create_category("SUPPORT TICKETS")
+    
+    channel_name = f"forced-{user.name.lower().replace(' ', '-')}"
+    
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+        user: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+    }
+    
+    if STAFF_ROLE_ID:
+        staff_role = guild.get_role(STAFF_ROLE_ID)
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+    
+    if MANAGER_ROLE_ID:
+        manager_role = guild.get_role(MANAGER_ROLE_ID)
+        if manager_role:
+            overwrites[manager_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+    
+    channel = await guild.create_text_channel(channel_name, category=category, overwrites=overwrites)
+    
+    # Create ticket
+    ticket = await ticket_manager.create_ticket(user.id, user.name, channel.id, TicketType.FORCED, interaction.user.name)
+    
+    embed = discord.Embed(
+        title="🎫 Force Ticket Created",
+        description=f"**User:** {user.mention}\n**Created by:** {interaction.user.mention}\n**Reason:** {reason or 'No reason provided'}",
+        color=0xffaa00,
+        timestamp=datetime.utcnow()
+    )
+    await channel.send(embed=embed)
+    
+    # Notify user
+    try:
+        user_embed = discord.Embed(
+            title="📋 Support Ticket Opened",
+            description=f"A support ticket has been opened for you by staff.\nYou will be assisted shortly.",
+            color=0x00ff00
+        )
+        await user.send(embed=user_embed)
+    except:
+        pass
+    
+    await interaction.followup.send(f"✅ Force ticket created for {user.mention} in {channel.mention}")
+    logger.info(f"Force ticket created for {user.name} by {interaction.user.name}")
+
+@bot.tree.command(name="force_transfer", description="Force transfer a ticket to another staff member")
+@is_whitelisted()
+@is_staff()
+async def force_transfer_command(interaction: discord.Interaction, user: discord.User, new_staff: discord.Member):
+    """Force transfer a ticket to another staff member"""
+    ticket = await ticket_manager.get_ticket_by_user(user.id)
+    
+    if not ticket:
+        await interaction.response.send_message(f"❌ No active ticket found for {user.mention}", ephemeral=True)
+        return
+    
+    new_staff_role = get_staff_role_name(new_staff)
+    
+    result = await ticket_manager.force_transfer(user.id, new_staff.id, new_staff.display_name, new_staff_role)
+    
+    if result:
+        embed = discord.Embed(
+            title="🔄 Ticket Force Transferred",
+            description=f"**User:** {user.mention}\n**New Staff:** {new_staff.mention} ({new_staff_role})\n**Transferred by:** {interaction.user.mention}",
+            color=0xffaa00,
+            timestamp=datetime.utcnow()
+        )
+        
+        channel = bot.get_channel(ticket.channel_id)
+        if channel:
+            await channel.send(embed=embed)
+        
+        # Notify new staff
+        try:
+            await new_staff.send(f"📋 You have been force assigned to ticket for {user.name}. Channel: {channel.mention if channel else 'Unknown'}")
+        except:
+            pass
+        
+        await interaction.response.send_message(f"✅ Ticket force transferred to {new_staff.mention}", ephemeral=True)
+    else:
+        await interaction.response.send_message("❌ Failed to transfer ticket", ephemeral=True)
+
+@bot.tree.command(name="history", description="Show a user's ticket history")
+@is_whitelisted()
+@is_staff()
+async def history_command(interaction: discord.Interaction, user: discord.User):
+    """Show a user's ticket history"""
+    history = await ticket_manager.get_user_history(user.id)
+    is_blacklisted = user.id in blacklisted_users
+    is_whitelisted_flag = user.id in whitelisted_users
+    
+    embed = discord.Embed(
+        title=f"📜 Ticket History - {user.name}",
+        description=f"**User ID:** {user.id}\n**Blacklisted:** {'Yes' if is_blacklisted else 'No'}\n**Whitelisted:** {'Yes' if is_whitelisted_flag else 'No'}",
+        color=0x3b82f6
+    )
+    
+    if not history:
+        embed.add_field(name="No Tickets Found", value="This user has no ticket history.", inline=False)
+    else:
+        for idx, ticket in enumerate(reversed(history[-5:]), 1):  # Show last 5 tickets
+            created_at = datetime.fromisoformat(ticket['created_at']).strftime("%Y-%m-%d %H:%M")
+            embed.add_field(
+                name=f"Ticket #{idx} - {ticket['type'].upper()}",
+                value=f"**Status:** {ticket['status']}\n**Created:** {created_at}\n**Created by:** {ticket.get('created_by', 'User')}",
+                inline=False
+            )
+    
+    embed.set_footer(text=f"Total tickets: {len(history)}")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 @bot.tree.command(name="reply", description="Reply to a ticket (web or DM)")
 @is_whitelisted()
 @is_staff()
@@ -565,7 +859,7 @@ async def reply_command(interaction: discord.Interaction, message: str, user_id:
     
     staff_role = get_staff_role_name(interaction.user)
     
-    if ticket.ticket_type == TicketType.DM:
+    if ticket.ticket_type in [TicketType.DM, TicketType.FORCED]:
         try:
             user = await bot.fetch_user(target_user_id)
             embed = discord.Embed(
@@ -589,6 +883,7 @@ async def reply_command(interaction: discord.Interaction, message: str, user_id:
             if channel:
                 await channel.send(embed=log_embed)
             
+            await ticket_manager.add_message(target_user_id, message)
             await interaction.followup.send(f"✅ Reply sent to {user.name}")
             
         except discord.Forbidden:
@@ -618,6 +913,7 @@ async def reply_command(interaction: discord.Interaction, message: str, user_id:
         if channel:
             await channel.send(embed=embed)
         
+        await ticket_manager.add_message(target_user_id, message)
         await interaction.followup.send(f"✅ Reply sent to web user {ticket.user_name}")
 
 @bot.tree.command(name="claim", description="Claim a ticket")
@@ -663,7 +959,7 @@ async def claim_command(interaction: discord.Interaction, user_id: Optional[str]
         if channel:
             await channel.send(embed=embed)
         
-        if ticket.ticket_type == TicketType.DM:
+        if ticket.ticket_type in [TicketType.DM, TicketType.FORCED]:
             try:
                 user = await bot.fetch_user(ticket.user_id)
                 await user.send(f"✅ **Ticket Claimed**\n{staff_role} ({interaction.user.display_name}) is now handling your ticket.")
@@ -714,7 +1010,7 @@ async def resolve_command(interaction: discord.Interaction, user_id: Optional[st
         if channel:
             await channel.send(embed=embed)
         
-        if ticket.ticket_type == TicketType.DM:
+        if ticket.ticket_type in [TicketType.DM, TicketType.FORCED]:
             try:
                 user = await bot.fetch_user(ticket.user_id)
                 await user.send(f"✅ **Ticket Resolved**\nYour ticket has been resolved by {staff_role}. It will close soon.\n\nThank you for contacting support!")
@@ -767,6 +1063,9 @@ async def close_ticket_by_user(user_id: int, channel: discord.TextChannel = None
             if ticket.claimed_by_name:
                 embed.add_field(name="Handled By", value=f"{ticket.claimed_by_name} ({ticket.claimed_by_role})", inline=True)
             
+            if ticket.created_by:
+                embed.add_field(name="Created By", value=ticket.created_by, inline=True)
+            
             # Send to logs channel
             log_channel = discord.utils.get(channel.guild.text_channels, name="ticket-logs")
             if not log_channel:
@@ -779,7 +1078,7 @@ async def close_ticket_by_user(user_id: int, channel: discord.TextChannel = None
             await log_channel.send(embed=embed)
             
             # Send review request ONLY when ticket is resolved (not closed)
-            if ticket.ticket_type == TicketType.DM and ticket.resolved_at and not ticket.review_sent:
+            if ticket.ticket_type in [TicketType.DM, TicketType.FORCED] and ticket.resolved_at and not ticket.review_sent:
                 ticket.review_sent = True
                 
                 try:
@@ -828,6 +1127,9 @@ async def close_ticket_by_user(user_id: int, channel: discord.TextChannel = None
                                     timestamp=datetime.utcnow()
                                 )
                                 
+                                if ticket.created_by:
+                                    review_embed.add_field(name="Ticket Created By", value=ticket.created_by, inline=False)
+                                
                                 await review_channel.send(embed=review_embed)
                             
                             await button_interaction.response.send_message(f"✅ Thank you for your {rating}-star review!", ephemeral=True)
@@ -860,10 +1162,11 @@ async def tickets_command(interaction: discord.Interaction):
     for ticket in tickets:
         status_emoji = "🟢" if ticket.status == TicketStatus.OPEN else "🟡"
         claimed_by = f"{ticket.claimed_by_name} ({ticket.claimed_by_role})" if ticket.claimed_by_name else "Unclaimed"
+        type_icon = "🌐" if ticket.ticket_type == TicketType.WEB else "💬" if ticket.ticket_type == TicketType.DM else "🔨"
         
         embed.add_field(
-            name=f"{status_emoji} {ticket.user_name} ({ticket.ticket_type.value})",
-            value=f"Status: {ticket.status.value} | Claimed: {claimed_by} | Messages: {ticket.message_count}",
+            name=f"{status_emoji} {type_icon} {ticket.user_name}",
+            value=f"Type: {ticket.ticket_type.value} | Claimed: {claimed_by} | Messages: {ticket.message_count}",
             inline=False
         )
     
@@ -892,6 +1195,9 @@ async def ticket_info_command(interaction: discord.Interaction, user_id: str):
     embed.add_field(name="Status", value=ticket.status.value, inline=True)
     embed.add_field(name="Created", value=ticket.created_at.strftime("%Y-%m-%d %H:%M:%S"), inline=True)
     embed.add_field(name="Messages", value=str(ticket.message_count), inline=True)
+    
+    if ticket.created_by:
+        embed.add_field(name="Created By", value=ticket.created_by, inline=True)
     
     if ticket.claimed_by_name:
         embed.add_field(name="Handled By", value=f"{ticket.claimed_by_name} ({ticket.claimed_by_role})", inline=True)
@@ -930,6 +1236,12 @@ async def transfer_command(interaction: discord.Interaction, user_id: str, new_s
         ticket.claimed_by_name = new_staff.display_name
         ticket.claimed_by_role = new_staff_role
         ticket.claimed_at = datetime.utcnow()
+        ticket.history.append({
+            'action': 'transferred',
+            'from': old_staff,
+            'to': f"{new_staff.display_name} ({new_staff_role})",
+            'at': datetime.utcnow().isoformat()
+        })
     
     embed = discord.Embed(
         title="🔄 Ticket Transferred",
@@ -1005,7 +1317,7 @@ async def help_command(interaction: discord.Interaction):
         )
         embed.add_field(
             name="💬 Staff Commands",
-            value="`/reply <message>` - Reply to a ticket\n`/claim` - Claim a ticket\n`/resolve` - Mark as resolved\n`/tickets` - List all tickets\n`/info <user_id>` - Get ticket info\n`/transfer` - Transfer ticket\n`/note` - Add private note",
+            value="`/reply <message>` - Reply to a ticket\n`/claim` - Claim a ticket\n`/resolve` - Mark as resolved\n`/force_ticket @user` - Force open ticket\n`/force_transfer @user @staff` - Force transfer\n`/history @user` - View user history\n`/blacklist @user` - Blacklist user\n`/tickets` - List all tickets\n`/info <user_id>` - Get ticket info",
             inline=False
         )
         embed.add_field(
@@ -1040,6 +1352,7 @@ async def stats_command(interaction: discord.Interaction):
     embed.add_field(name="🟡 Claimed Tickets", value=str(ticket_stats['claimed']), inline=True)
     embed.add_field(name="✅ Handled Tickets", value=str(ticket_stats['handled']), inline=True)
     embed.add_field(name="👥 Whitelisted", value=f"{len(whitelisted_users)} users, {len(whitelisted_roles)} roles", inline=True)
+    embed.add_field(name="🚫 Blacklisted", value=str(len(blacklisted_users)), inline=True)
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -1069,6 +1382,7 @@ async def on_ready():
     logger.info(f"✅ Logged in as: {bot.user.name} ({bot.user.id})")
     logger.info(f"✅ Connected to {len(bot.guilds)} guilds")
     logger.info(f"✅ Whitelist: {len(whitelisted_users)} users, {len(whitelisted_roles)} roles")
+    logger.info(f"✅ Blacklist: {len(blacklisted_users)} users")
     
     guild = discord.Object(id=GUILD_ID)
     commands = await bot.tree.fetch_commands(guild=guild)
@@ -1078,6 +1392,11 @@ async def on_ready():
 async def on_message(message: discord.Message):
     """Handle incoming messages"""
     if message.author == bot.user:
+        return
+    
+    # Check blacklist for DM messages
+    if isinstance(message.channel, discord.DMChannel) and message.author.id in blacklisted_users:
+        await message.author.send("🚫 **You are blacklisted from using this support system.**\nIf you believe this is an error, please contact an administrator.")
         return
     
     if isinstance(message.channel, discord.DMChannel):
@@ -1091,7 +1410,7 @@ async def handle_dm(message: discord.Message):
     ticket = await ticket_manager.get_ticket_by_user(message.author.id)
     
     if ticket:
-        await ticket_manager.add_message(message.author.id)
+        await ticket_manager.add_message(message.author.id, message.content)
         
         channel = bot.get_channel(ticket.channel_id)
         if channel:
@@ -1127,6 +1446,7 @@ async def handle_dm(message: discord.Message):
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(read_messages=False),
         guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+        message.author: discord.PermissionOverwrite(read_messages=True, send_messages=True)
     }
     
     if STAFF_ROLE_ID:
