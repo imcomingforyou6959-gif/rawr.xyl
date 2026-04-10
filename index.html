@@ -317,7 +317,7 @@
         }
     }
 
-    // --- LIVE CHAT COMPONENT (same as before) ---
+    // --- LIVE CHAT COMPONENT ---
     const LiveChat = () => {
         const [isOpen, setIsOpen] = React.useState(false);
         const [messages, setMessages] = React.useState([]);
@@ -587,7 +587,7 @@
         );
     };
 
-    // --- COMPATIBILITY BAR (used on home) ---
+    // --- COMPATIBILITY BAR ---
     const CompatibilityBar = () => {
         const executors = [
             { name: "Xeno", status: "verified" },
@@ -616,7 +616,7 @@
         );
     };
 
-    // --- SCRIPT BLOCK (home page script display) ---
+    // --- SCRIPT BLOCK ---
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
@@ -691,15 +691,15 @@
         );
     }
 
-    // --- SCRIPTS PAGE COMPONENT (NEW) ---
+    // --- SCRIPTS PAGE COMPONENT ---
     const ScriptsPage = () => {
-        // Static list of scripts – can be extended or fetched dynamically
+        // Static list
         const scripts = [
             {
                 id: 1,
                 name: "Our Universal Script",
                 description: "Made with love.",
-                version: "2.1.0",
+                version: "1.7.2",
                 loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/scripts/esp.lua"))()',
                 tags: ["visual", "esp"]
             },
@@ -707,7 +707,7 @@
                 id: 2,
                 name: "HELLMET",
                 description: "made with love",
-                version: "1.4.2",
+                version: "1.1.5",
                 loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/Rawr.xyz.luau.HELLMET/refs/heads/main/.luau"))()',
                 tags: ["ESP", "Sum else idk"]
             },
@@ -825,7 +825,7 @@
         );
     };
 
-    // --- RAIN BACKGROUND (unchanged) ---
+    // --- RAIN BACKGROUND ---
     const RainBackground = () => {
         const canvasRef = React.useRef(null);
         const animationRef = React.useRef(null);
@@ -877,7 +877,7 @@
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    // --- LINK BUTTON (external) ---
+    // --- LINK BUTTONS ---
     const LinkButton = ({ href, icon, label, external = true }) => (
         <motion.a
             whileHover={{ scale: 1.05 }}
@@ -892,7 +892,7 @@
         </motion.a>
     );
 
-    // --- MAIN APP WITH ROUTING ---
+    // --- hm ---
     function App() {
         const [page, setPage] = React.useState('home'); // 'home' or 'scripts'
         const [showNotification, setShowNotification] = React.useState(true);
@@ -915,7 +915,7 @@
                     {showNotification && (
                         <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
                             <i className="fas fa-shield-alt mr-2 text-primary"></i>
-                            Secure connection established
+                            established for a good time
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -939,7 +939,7 @@
                         </p>
                     </div>
 
-                    {/* Navigation pill */}
+                    {/* 4 */}
                     <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-full border border-white/10">
                         <button
                             onClick={() => setPage('home')}
@@ -955,7 +955,7 @@
                         </button>
                     </div>
 
-                    {/* Conditional rendering based on page */}
+                    {/* 2 */}
                     {isHome ? (
                         <>
                             <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
@@ -970,7 +970,7 @@
                     )}
                 </motion.div>
 
-                {/* FOOTER with page navigation */}
+                {/* 2 */}
                 <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
                     <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
                         rawr.xyz // Secure Access // v2.0
