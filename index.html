@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     
-    <title>rawrs.zapto.org | Safe, Secure, Contained</title>
+    <title>rawrs.zapto.org=</title>
     <meta name="description" content="The official repository for rawr.xyz. Safe. Fast. Reliable.">
     <meta name="theme-color" content="#ef4444">
 
@@ -34,25 +34,14 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap');
         
-        * {
-            box-sizing: border-box;
-        }
-        
-        html, body, #root {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-        
+        * { box-sizing: border-box; }
+        html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; }
         body {
             background-color: #050505;
             color: white;
             overflow-x: hidden;
             font-family: 'Inter', sans-serif;
         }
-        
-        /* Rain Canvas */
         .rain-canvas {
             position: fixed;
             top: 0;
@@ -61,8 +50,6 @@
             z-index: 1;
             opacity: 0.12;
         }
-        
-        /* Scanline Effect */
         .scanline {
             width: 100%;
             height: 3px;
@@ -72,47 +59,23 @@
             top: 0;
             animation: scan 6s linear infinite;
         }
-        
         @keyframes scan {
             0% { top: -10%; }
             100% { top: 110%; }
         }
-        
-        /* Logo Glow */
-        .logo-glow {
-            filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.3));
-        }
-        
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #ef4444;
-            border-radius: 10px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 3px;
-        }
-        
-        /* Chat Message Animations */
+        .logo-glow { filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.3)); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
         @keyframes slideInRight {
             from { opacity: 0; transform: translateX(20px); }
             to { opacity: 1; transform: translateX(0); }
         }
-        
         @keyframes slideInLeft {
             from { opacity: 0; transform: translateX(-20px); }
             to { opacity: 1; transform: translateX(0); }
         }
-        
-        /* Typing Indicator */
         .typing-indicator {
             display: flex;
             gap: 4px;
@@ -121,7 +84,6 @@
             border-radius: 12px;
             width: fit-content;
         }
-        
         .typing-indicator span {
             width: 6px;
             height: 6px;
@@ -129,16 +91,12 @@
             border-radius: 50%;
             animation: typing 1.4s infinite;
         }
-        
         .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
         .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-        
         @keyframes typing {
             0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
             30% { transform: translateY(-8px); opacity: 1; }
         }
-        
-        /* Notification Badge */
         .notification-badge {
             position: absolute;
             top: -8px;
@@ -156,53 +114,35 @@
             animation: pulse 1.5s infinite;
             border: 2px solid #050505;
         }
-        
         @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.2); opacity: 0.8; }
         }
-        
-        /* Connection Status Dot */
         .status-dot {
             width: 8px;
             height: 8px;
             border-radius: 50%;
             animation: statusPulse 2s infinite;
         }
-        
         .status-dot.connected {
             background: #22c55e;
             box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
         }
-        
-        .status-dot.disconnected {
-            background: #ef4444;
-        }
-        
+        .status-dot.disconnected { background: #ef4444; }
         @keyframes statusPulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
         }
-        
-        /* Input Focus */
         input:focus { outline: none; }
-
-        /* Mobile optimizations */
         @media (max-width: 640px) {
             .rain-canvas { opacity: 0.05; }
             .logo-glow { filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.2)); }
         }
-
-        /* Prevent layout shift */
         html { overflow-y: scroll; }
-
-        /* Better text rendering */
         body, button, input {
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-
-        /* Chat button styling */
         .chat-toggle-btn {
             width: 60px;
             height: 60px;
@@ -214,7 +154,6 @@
             position: relative;
             font-size: 24px;
         }
-
         @media (max-width: 640px) {
             .chat-toggle-btn {
                 width: 56px;
@@ -222,14 +161,11 @@
                 font-size: 20px;
             }
         }
-
-        /* Footer link hover */
         .footer-link {
             transition: color 0.3s ease;
+            cursor: pointer;
         }
-        .footer-link:hover {
-            color: #ef4444;
-        }
+        .footer-link:hover { color: #ef4444; }
     </style>
 </head>
 <body>
@@ -263,7 +199,6 @@
                 return [];
             }
         }
-
         static setMessages(messages) {
             try {
                 const key = CONFIG.STORAGE_KEY_PREFIX + 'messages';
@@ -273,7 +208,6 @@
                 console.warn('Failed to save messages:', e);
             }
         }
-
         static getUserId() {
             try {
                 const key = CONFIG.STORAGE_KEY_PREFIX + 'user_id';
@@ -287,7 +221,6 @@
                 return 'User_' + Math.random().toString(36).substr(2, 9);
             }
         }
-
         static cleanup() {
             try {
                 const key = CONFIG.STORAGE_KEY_PREFIX + 'messages';
@@ -316,11 +249,9 @@
             this.messageQueue = [];
             this.isReady = false;
         }
-
         async connect() {
             try {
                 this.ws = new WebSocket(CONFIG.WEBSOCKET_URL);
-                
                 this.ws.onopen = () => {
                     console.log('WebSocket connected');
                     this.isConnected = true;
@@ -331,7 +262,6 @@
                         this.send(msg);
                     }
                 };
-                
                 this.ws.onmessage = (event) => {
                     try {
                         const data = JSON.parse(event.data);
@@ -340,12 +270,10 @@
                         console.error('Failed to parse message:', e);
                     }
                 };
-                
                 this.ws.onerror = (error) => {
                     console.error('WebSocket error:', error);
                     this.isConnected = false;
                 };
-                
                 this.ws.onclose = () => {
                     console.log('WebSocket closed');
                     this.isConnected = false;
@@ -359,7 +287,6 @@
                 this.attemptReconnect();
             }
         }
-
         attemptReconnect() {
             if (this.reconnectAttempts < this.maxReconnectAttempts) {
                 this.reconnectAttempts++;
@@ -368,7 +295,6 @@
                 setTimeout(() => this.connect(), Math.min(delay, 30000));
             }
         }
-
         send(message) {
             if (!this.isConnected || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -385,14 +311,13 @@
                 return false;
             }
         }
-
         close() {
             if (this.ws) { this.ws.close(); }
             this.isConnected = false;
         }
     }
 
-    // --- LIVE CHAT COMPONENT ---
+    // --- LIVE CHAT COMPONENT (same as before) ---
     const LiveChat = () => {
         const [isOpen, setIsOpen] = React.useState(false);
         const [messages, setMessages] = React.useState([]);
@@ -412,17 +337,9 @@
         React.useEffect(() => {
             const saved = StorageManager.getMessages();
             setMessages(saved);
-
-            wsManagerRef.current = new WebSocketManager((data) => {
-                handleWebSocketMessage(data);
-            });
-
+            wsManagerRef.current = new WebSocketManager((data) => handleWebSocketMessage(data));
             wsManagerRef.current.connect();
-
-            const cleanupInterval = setInterval(() => {
-                StorageManager.cleanup();
-            }, CONFIG.CLEANUP_INTERVAL);
-
+            const cleanupInterval = setInterval(() => StorageManager.cleanup(), CONFIG.CLEANUP_INTERVAL);
             return () => {
                 clearInterval(cleanupInterval);
                 if (wsManagerRef.current) { wsManagerRef.current.close(); }
@@ -433,7 +350,6 @@
             const msgId = data.id;
             if (msgId && processedIdsRef.current.has(msgId)) return;
             if (msgId) processedIdsRef.current.add(msgId);
-
             if (data.type === 'chat' && data.origin === 'web') {
                 addMessage({ user: data.user, text: data.text, timestamp: data.timestamp || Date.now(), origin: 'web', id: msgId || generateMessageId() });
             } else if (data.type === 'reply') {
@@ -442,7 +358,6 @@
             } else if (data.type === 'typing') {
                 if (data.origin === 'discord') setStaffReplying(true);
             }
-
             updateConnectionStatus();
         };
 
@@ -469,34 +384,27 @@
 
         React.useEffect(() => {
             if (scrollRef.current && isOpen) {
-                setTimeout(() => {
-                    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-                }, 0);
+                setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }), 0);
             }
         }, [messages, isOpen]);
 
-        React.useEffect(() => {
-            if (isOpen) setUnreadCount(0);
-        }, [isOpen]);
+        React.useEffect(() => { if (isOpen) setUnreadCount(0); }, [isOpen]);
 
         React.useEffect(() => {
-            const checkConnection = setInterval(() => { updateConnectionStatus(); }, 2000);
+            const checkConnection = setInterval(() => updateConnectionStatus(), 2000);
             return () => clearInterval(checkConnection);
         }, []);
 
         const sendMessage = async () => {
             if (!input.trim()) return;
             if (!isConnected) { setError('Not connected. Please try again.'); return; }
-
             const messageText = input.trim().slice(0, CONFIG.MAX_MESSAGE_LENGTH);
             const messageId = generateMessageId();
             const message = { type: 'chat', user: currentUserRef.current, text: messageText, timestamp: Date.now(), origin: 'web', id: messageId };
-
             setIsLoading(true);
             setInput("");
             setError(null);
             addMessage(message);
-
             const sent = wsManagerRef.current.send(message);
             if (!sent) { setError('Failed to send. Retrying...'); setInput(messageText); }
             setIsLoading(false);
@@ -533,7 +441,6 @@
                                     </div>
                                     <i className="fas fa-headset text-black text-xs"></i>
                                 </div>
-
                                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-black/95">
                                     {messages.length === 0 ? (
                                         <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
@@ -577,13 +484,11 @@
                                         </>
                                     )}
                                 </div>
-
                                 {error && (
                                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-4 py-2 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[8px]">
                                         <i className="fas fa-exclamation-circle mr-2"></i> {error}
                                     </motion.div>
                                 )}
-
                                 <div className="border-t border-white/10 bg-black/50 p-4 flex-shrink-0">
                                     <div className="flex gap-2 mb-2">
                                         <input value={input} onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) { e.preventDefault(); sendMessage(); } }} disabled={!isConnected || isLoading} type="text" placeholder={isConnected ? "Type a message..." : "Connecting..."} className="bg-white/5 border border-white/10 flex-1 px-3 py-2 text-[11px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50" maxLength={CONFIG.MAX_MESSAGE_LENGTH} />
@@ -601,6 +506,7 @@
                     )}
                 </AnimatePresence>
 
+                {/* Mobile chat drawer (unchanged) */}
                 <AnimatePresence>
                     {isOpen && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[98] bg-black/95 sm:hidden flex flex-col">
@@ -613,8 +519,8 @@
                                     <i className="fas fa-times"></i>
                                 </motion.button>
                             </div>
-
                             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                                {/* ... same content as desktop ... */}
                                 {messages.length === 0 ? (
                                     <div className="text-center text-white/20 py-12 flex flex-col items-center justify-center h-full">
                                         <i className="fas fa-comments text-4xl mb-4"></i>
@@ -657,13 +563,11 @@
                                     </>
                                 )}
                             </div>
-
                             {error && (
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-4 py-3 bg-red-500/20 border-t border-red-500/40 text-red-400 text-[9px]">
                                     <i className="fas fa-exclamation-circle mr-2"></i> {error}
                                 </motion.div>
                             )}
-
                             <div className="border-t border-white/10 bg-black/50 p-4">
                                 <div className="flex gap-2 mb-2">
                                     <input value={input} onChange={(e) => setInput(e.target.value.slice(0, CONFIG.MAX_MESSAGE_LENGTH))} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isLoading && isConnected) { e.preventDefault(); sendMessage(); } }} disabled={!isConnected || isLoading} type="text" placeholder={isConnected ? "Type a message..." : "Connecting..."} className="bg-white/5 border border-white/10 flex-1 px-4 py-3 text-[12px] focus:border-primary/50 rounded-lg text-white placeholder:text-white/20 disabled:opacity-50" maxLength={CONFIG.MAX_MESSAGE_LENGTH} />
@@ -683,7 +587,7 @@
         );
     };
 
-    // --- COMPATIBILITY BAR ---
+    // --- COMPATIBILITY BAR (used on home) ---
     const CompatibilityBar = () => {
         const executors = [
             { name: "Xeno", status: "verified" },
@@ -692,7 +596,6 @@
             { name: "Wave", status: "beta" },
             { name: "Sirhurt", status: "verified" }
         ];
-
         return (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-12 sm:mt-16 w-full max-w-3xl px-6 sm:px-0">
                 <div className="flex items-center gap-4 mb-6 sm:mb-8">
@@ -713,7 +616,7 @@
         );
     };
 
-    // --- SCRIPT BLOCK ---
+    // --- SCRIPT BLOCK (home page script display) ---
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
@@ -722,7 +625,6 @@
             statusColor: "green",
             changelog: "Improved stability and performance"
         });
-
         React.useEffect(() => {
             const fetchStatus = async () => {
                 try {
@@ -736,12 +638,10 @@
                     console.log('Using default config');
                 }
             };
-
             fetchStatus();
             const interval = setInterval(fetchStatus, 30000);
             return () => clearInterval(interval);
         }, []);
-
         const handleCopy = async () => {
             const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
             try {
@@ -753,9 +653,7 @@
                 alert('Failed to copy to clipboard');
             }
         };
-
         const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
-
         return (
             <div className="flex flex-col items-center w-full">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0">
@@ -769,19 +667,16 @@
                             <span className="text-[8px] sm:text-[9px] font-bold text-white/40 uppercase">{config.status}</span>
                         </div>
                     </div>
-
                     <div className="p-5 sm:p-7">
                         <div className="bg-black/60 rounded-lg sm:rounded-xl p-4 sm:p-5 mb-5 border border-white/5 overflow-x-auto">
                             <code className="text-primary text-[10px] sm:text-[11px] font-mono break-all select-all whitespace-normal sm:whitespace-pre-wrap">
                                 {scriptText}
                             </code>
                         </div>
-
                         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleCopy} className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-[11px] tracking-widest transition-all uppercase flex items-center justify-center gap-2">
                             <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[10px] sm:text-[11px]`}></i>
                             {copied ? "Copied Successfully" : "Copy Official Script"}
                         </motion.button>
-
                         {config.changelog && (
                             <div className="mt-4 text-center">
                                 <span className="text-[8px] sm:text-[9px] text-white/20">
@@ -796,11 +691,144 @@
         );
     }
 
-    // --- RAIN BACKGROUND ---
+    // --- SCRIPTS PAGE COMPONENT (NEW) ---
+    const ScriptsPage = () => {
+        // Static list of scripts – can be extended or fetched dynamically
+        const scripts = [
+            {
+                id: 1,
+                name: "Our Universal Script",
+                description: "Made with love.",
+                version: "2.1.0",
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/scripts/esp.lua"))()',
+                tags: ["visual", "esp"]
+            },
+            {
+                id: 2,
+                name: "HELLMET",
+                description: "made with love",
+                version: "1.4.2",
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/Rawr.xyz.luau.HELLMET/refs/heads/main/.luau"))()',
+                tags: ["ESP", "Sum else idk"]
+            },
+            {
+                id: 3,
+                name: "Empty",
+                description: "Empty.",
+                version: "1.0.0",
+                loadstring: 'PlaceHolder',
+                tags: ["Coming Soon", "Pending"]
+            },
+            {
+                id: 4,
+                name: "Empty",
+                description: "Empty",
+                version: "1.0.0",
+                loadstring: 'PlaceHolder',
+                tags: ["Pending"]
+            },
+            {
+                id: 5,
+                name: "Empty",
+                description: "Empty",
+                version: "1.0.0",
+                loadstring: 'PlaceHolder',
+                tags: ["soon", "pending"]
+            },
+            {
+                id: 6,
+                name: "Empty",
+                description: "Empty",
+                version: "1.0.0",
+                loadstring: 'PlaceHolder',
+                tags: ["Pending", "Soon"]
+            }
+        ];
+
+        const [copiedId, setCopiedId] = React.useState(null);
+
+        const copyScript = async (scriptText, id) => {
+            try {
+                await navigator.clipboard.writeText(scriptText);
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(null), 2000);
+            } catch (err) {
+                alert('Failed to copy script');
+            }
+        };
+
+        return (
+            <div className="relative z-20 w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+                    <h2 className="text-4xl sm:text-5xl font-black font-mono text-white italic tracking-tight">
+                        Script <span className="text-primary">Library</span>
+                    </h2>
+                    <p className="text-white/30 font-mono text-[10px] sm:text-xs tracking-[0.3em] uppercase mt-3">
+                        All scripts
+                    </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {scripts.map((script) => (
+                        <motion.div
+                            key={script.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: script.id * 0.05 }}
+                            className="bg-black/40 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm hover:border-primary/30 transition-all group"
+                        >
+                            <div className="p-5">
+                                <div className="flex items-start justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors">
+                                        {script.name}
+                                    </h3>
+                                    <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-mono">
+                                        {script.version}
+                                    </span>
+                                </div>
+                                <p className="text-white/60 text-sm mb-4 min-h-[40px]">
+                                    {script.description}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {script.tags.map(tag => (
+                                        <span key={tag} className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded uppercase tracking-wider">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div className="bg-black/60 rounded-lg p-3 mb-3 border border-white/5 overflow-x-auto">
+                                    <code className="text-primary/80 text-[10px] font-mono break-all select-all">
+                                        {script.loadstring}
+                                    </code>
+                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => copyScript(script.loadstring, script.id)}
+                                    className="w-full py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg font-bold text-[10px] tracking-wider uppercase transition-all flex items-center justify-center gap-2"
+                                >
+                                    <i className={`fas ${copiedId === script.id ? 'fa-check' : 'fa-copy'} text-[10px]`}></i>
+                                    {copiedId === script.id ? 'Copied!' : 'Copy Script'}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+
+                <div className="mt-12 text-center">
+                    <p className="text-white/20 text-[9px] font-mono">
+                        <i className="fas fa-shield-alt mr-2"></i>
+                        All scripts are regularly updated.
+                    </p>
+                </div>
+            </div>
+        );
+    };
+
+    // --- RAIN BACKGROUND (unchanged) ---
     const RainBackground = () => {
         const canvasRef = React.useRef(null);
         const animationRef = React.useRef(null);
-
         React.useEffect(() => {
             const canvas = canvasRef.current;
             if (!canvas) return;
@@ -808,13 +836,11 @@
             let drops = [];
             let width = window.innerWidth;
             let height = window.innerHeight;
-
             const init = () => {
                 width = window.innerWidth;
                 height = window.innerHeight;
                 canvas.width = width;
                 canvas.height = height;
-
                 const isMobile = width < 640;
                 const dropCount = isMobile ? Math.min(30, Math.floor(width / 50)) : Math.min(80, Math.floor(width / 30));
                 drops = Array.from({ length: dropCount }, () => ({
@@ -824,14 +850,12 @@
                     vel: Math.random() * 8 + 4
                 }));
             };
-
             const draw = () => {
                 if (!ctx) return;
                 ctx.clearRect(0, 0, width, height);
                 ctx.strokeStyle = '#ef4444';
                 ctx.lineWidth = 1;
                 ctx.globalAlpha = 0.3;
-
                 drops.forEach(d => {
                     ctx.beginPath();
                     ctx.moveTo(d.x, d.y);
@@ -840,24 +864,20 @@
                     d.y += d.vel;
                     if (d.y > height) { d.y = -20; d.x = Math.random() * width; }
                 });
-
                 animationRef.current = requestAnimationFrame(draw);
             };
-
             init();
             draw();
-
             window.addEventListener('resize', init);
             return () => {
                 window.removeEventListener('resize', init);
                 if (animationRef.current) cancelAnimationFrame(animationRef.current);
             };
         }, []);
-
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    // --- LINK BUTTON ---
+    // --- LINK BUTTON (external) ---
     const LinkButton = ({ href, icon, label, external = true }) => (
         <motion.a
             whileHover={{ scale: 1.05 }}
@@ -872,14 +892,18 @@
         </motion.a>
     );
 
-    // --- MAIN HOME COMPONENT ---
-    function Home() {
+    // --- MAIN APP WITH ROUTING ---
+    function App() {
+        const [page, setPage] = React.useState('home'); // 'home' or 'scripts'
         const [showNotification, setShowNotification] = React.useState(true);
 
         React.useEffect(() => {
             const timer = setTimeout(() => setShowNotification(false), 5000);
             return () => clearTimeout(timer);
         }, []);
+
+        // Determine if we're on home page to show the main script block and compatibility bar
+        const isHome = page === 'home';
 
         return (
             <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-background px-6 sm:px-6 overflow-hidden py-16 sm:py-24">
@@ -915,22 +939,46 @@
                         </p>
                     </div>
 
-                    <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
-                        <LinkButton href="https://discord.gg/eMpUQzFrNG" icon="fa-brands fa-discord" label="Community" />
-                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
-                        <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="Showcase" />
+                    {/* Navigation pill */}
+                    <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-full border border-white/10">
+                        <button
+                            onClick={() => setPage('home')}
+                            className={`px-6 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition-all ${isHome ? 'bg-primary text-black' : 'text-white/40 hover:text-white/80'}`}
+                        >
+                            <i className="fas fa-home mr-2"></i>Home
+                        </button>
+                        <button
+                            onClick={() => setPage('scripts')}
+                            className={`px-6 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition-all ${!isHome ? 'bg-primary text-black' : 'text-white/40 hover:text-white/80'}`}
+                        >
+                            <i className="fas fa-scroll mr-2"></i>Scripts
+                        </button>
                     </div>
 
-                    <ScriptBlock />
+                    {/* Conditional rendering based on page */}
+                    {isHome ? (
+                        <>
+                            <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
+                                <LinkButton href="https://discord.gg/eMpUQzFrNG" icon="fa-brands fa-discord" label="Community" />
+                                <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
+                                <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="Showcase" />
+                            </div>
+                            <ScriptBlock />
+                        </>
+                    ) : (
+                        <ScriptsPage />
+                    )}
                 </motion.div>
 
-                {/* ── FOOTER ── */}
+                {/* FOOTER with page navigation */}
                 <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
                     <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
                         rawr.xyz // Secure Access // v2.0
                     </div>
                     <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/20 tracking-normal">
-                        <a href="/" className="footer-link">Home</a>
+                        <span className="footer-link" onClick={() => setPage('home')}>Home</span>
+                        <span className="text-white/10">•</span>
+                        <span className="footer-link" onClick={() => setPage('scripts')}>Scripts</span>
                         <span className="text-white/10">•</span>
                         <a href="/tos" className="footer-link">Terms of Service</a>
                         <span className="text-white/10">•</span>
@@ -951,7 +999,7 @@
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<Home />);
+    root.render(<App />);
 </script>
 </body>
 </html>
