@@ -1,7 +1,7 @@
 function ScriptBlock() {
     const [copied, setCopied] = React.useState(false);
     
-    // Initial state set to "LOADING" while fetching from GitHub
+    // 1
     const [config, setConfig] = React.useState({
         version: "LOADING...",
         status: "CHECKING...",
@@ -10,7 +10,7 @@ function ScriptBlock() {
 
     const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
     
-    // Destructure Motion components from the global window object
+    // 1
     const { motion, AnimatePresence } = window.Motion;
 
     React.useEffect(() => {
@@ -58,7 +58,7 @@ function ScriptBlock() {
     const textColorClass = config.statusColor === "green" ? "text-green-500/80" : 
                           config.statusColor === "red" ? "text-red-500/80" : "text-yellow-500/80";
 
-    // Sub-component for the Executor list
+    // 1
     const CompatibilityBar = () => {
         const executors = ["Xeno", "Velocity", "Solara", "Wave", "Sirhurt"];
         return (
@@ -93,7 +93,7 @@ function ScriptBlock() {
                 animate={{ opacity: 1, y: 0 }} 
                 className="relative w-full max-w-lg bg-black/60 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md shadow-2xl mt-8"
             >
-                {/* Terminal Top Bar */}
+                {/* 1 */}
                 <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10">
                     <div className="flex items-center gap-4">
                         <div className="flex gap-1.5">
@@ -117,7 +117,7 @@ function ScriptBlock() {
                     </div>
                 </div>
 
-                {/* Terminal Main Body */}
+                {/* T1 */}
                 <div className="p-6 relative group">
                     <div className="bg-black/40 rounded-lg p-4 mb-4 border border-white/5 group-hover:border-primary/20 transition-colors">
                         <code className="block font-mono text-[10px] md:text-xs text-primary/90 break-all leading-relaxed">
