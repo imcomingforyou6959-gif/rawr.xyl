@@ -317,7 +317,7 @@
         }
     }
 
-    // --- LIVE CHAT COMPONENT ---
+    // 67
     const LiveChat = () => {
         const [isOpen, setIsOpen] = React.useState(false);
         const [messages, setMessages] = React.useState([]);
@@ -506,7 +506,7 @@
                     )}
                 </AnimatePresence>
 
-                {/* Mobile chat drawer (unchanged) */}
+                {/* MC */}
                 <AnimatePresence>
                     {isOpen && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[98] bg-black/95 sm:hidden flex flex-col">
@@ -587,7 +587,7 @@
         );
     };
 
-    // --- COMPATIBILITY BAR ---
+    // this bar is cool :(
     const CompatibilityBar = () => {
         const executors = [
             { name: "Xeno", status: "verified" },
@@ -616,7 +616,7 @@
         );
     };
 
-    // --- SCRIPT BLOCK ---
+    // SCB
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
@@ -691,7 +691,7 @@
         );
     }
 
-    // --- SCRIPTS PAGE COMPONENT ---
+    // Page witta scripts :3
     const ScriptsPage = () => {
         // Static list
         const scripts = [
@@ -700,7 +700,7 @@
                 name: "Our Universal Script",
                 description: "Made with love.",
                 version: "1.7.2",
-                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/scripts/esp.lua"))()',
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Universal.lua"))()',
                 tags: ["visual", "esp"]
             },
             {
@@ -708,7 +708,7 @@
                 name: "HELLMET",
                 description: "made with love",
                 version: "1.1.5",
-                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/Rawr.xyz.luau.HELLMET/refs/heads/main/.luau"))()',
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Hellmet.lua"))()',
                 tags: ["ESP", "Sum else idk"]
             },
             {
