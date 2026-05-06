@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     
     <title>rawr.xyz</title>
-    <meta name="description" content="The official repository for rawr.xyz. Safe. Fast. Reliable.">
+    <meta name="description" content="somethin supposed to be here hmmmm...">
     <meta name="theme-color" content="#ef4444">
 
     <link rel="icon" type="image/png" href="logo.png">
@@ -187,7 +187,6 @@
 
     const generateMessageId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // --- STORAGE MANAGER ---
     class StorageManager {
         static getMessages() {
             try {
@@ -237,7 +236,7 @@
         }
     }
 
-    // --- WEBSOCKET MANAGER ---
+    // websocket
     class WebSocketManager {
         constructor(onMessage) {
             this.ws = null;
@@ -593,7 +592,7 @@
             { name: "Xeno", status: "verified" },
             { name: "Velocity", status: "verified" },
             { name: "Solara", status: "verified" },
-            { name: "Wave", status: "beta" },
+            { name: "Wave", status: "prob" },
             { name: "Sirhurt", status: "verified" }
         ];
         return (
@@ -643,7 +642,7 @@
             return () => clearInterval(interval);
         }, []);
         const handleCopy = async () => {
-            const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
+            const scriptText = `loadstring(game:HttpGet("https://https://rawrs.zapto.org/Universal.lua"))()`;
             try {
                 await navigator.clipboard.writeText(scriptText);
                 setCopied(true);
@@ -653,7 +652,7 @@
                 alert('Failed to copy to clipboard');
             }
         };
-        const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
+        const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/Universal.lua"))()`;
         return (
             <div className="flex flex-col items-center w-full">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0">
