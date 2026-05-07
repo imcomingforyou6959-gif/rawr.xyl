@@ -1,21 +1,3 @@
-"""
-RawrBot – Professional Support & Moderation Bot
-================================================
-Features:
-  - DM → ticket creation with anti‑duplicate protection
-  - Web chat → dedicated Discord channel (reuses channels)
-  - Full ticket lifecycle (claim, resolve, transfer, notes)
-  - Moderation commands (ban, kick, timeout, warn)
-  - Whitelist / blacklist management
-  - Analytics & staff performance tracking
-  - GitHub‑based persistent storage (local fallback)
-  - Human‑like, friendly responses
-
-Environment Variables (see README for details):
-  BOT_TOKEN (secret), GUILD_ID, OWNER_ID, STAFF_ROLE_ID, MANAGER_ROLE_ID,
-  MODERATOR_ROLE_ID, TICKET_CATEGORY_ID, REVIEW_CHANNEL_ID, STORAGE_TOKEN (secret)
-"""
-
 import os
 import sys
 import asyncio
