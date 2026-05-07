@@ -55,28 +55,44 @@ logger = logging.getLogger('RawrBot')
 # ─────────────────────────────────────────────
 #  CONFIGURATION
 # ─────────────────────────────────────────────
-TOKEN = os.getenv('BOT_TOKEN')
+def _env_int(key: str, default: int = 0) -> int:
+    """Return an int from env, falling back to default if missing or empty."""
+    val = os.getenv(key, '').strip()
+    if val == '':
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        logger.warning(f"Invalid int for {key}: {val!r}, using default {default}")
+        return default
+
+TOKEN = os.getenv('BOT_TOKEN', '').strip()
 if not TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
 
-GUILD_ID = int(os.getenv('GUILD_ID', '0'))
+GUILD_ID = _env_int('GUILD_ID')
 if not GUILD_ID:
     raise ValueError("GUILD_ID environment variable not set")
 
-PORT                = int(os.getenv('PORT', 8080))
-TICKET_CATEGORY_ID  = int(os.getenv('TICKET_CATEGORY_ID', '0'))
-REVIEW_CHANNEL_ID   = int(os.getenv('REVIEW_CHANNEL_ID', '1489438620233240596'))
-OWNER_ID            = int(os.getenv('OWNER_ID', '0'))
-STAFF_ROLE_ID       = int(os.getenv('STAFF_ROLE_ID', '0'))
-MANAGER_ROLE_ID     = int(os.getenv('MANAGER_ROLE_ID', '0'))
-MODERATOR_ROLE_ID   = int(os.getenv('MODERATOR_ROLE_ID', '0'))
+PORT                = _env_int('PORT', 8080)
+TICKET_CATEGORY_ID  = _env_int('TICKET_CATEGORY_ID', 0)
+REVIEW_CHANNEL_ID   = _env_int('REVIEW_CHANNEL_ID', 1489438620233240596)   # fallback from original code
+OWNER_ID            = _env_int('OWNER_ID', 0)
+STAFF_ROLE_ID       = _env_int('STAFF_ROLE_ID', 0)
+MANAGER_ROLE_ID     = _env_int('MANAGER_ROLE_ID', 0)
+MODERATOR_ROLE_ID   = _env_int('MODERATOR_ROLE_ID', 0)
+
+# Optional AWS settings – string, no change needed
+USE_AWS             = os.getenv('USE_AWS', 'false').lower() == 'true'
+AWS_ACCESS_KEY      = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_KEY      = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_REGION          = os.getenv('AWS_REGION', 'us-east-1')
 
 RATE_LIMIT_SECONDS      = 5
 MAX_MESSAGES_PER_MINUTE = 12
 
-# How long (in minutes) a ticket can be idle before auto-close warning / close
-IDLE_WARN_MINUTES  = int(os.getenv('IDLE_WARN_MINUTES', '30'))
-IDLE_CLOSE_MINUTES = int(os.getenv('IDLE_CLOSE_MINUTES', '60'))
+IDLE_WARN_MINUTES  = _env_int('IDLE_WARN_MINUTES', 30)
+IDLE_CLOSE_MINUTES = _env_int('IDLE_CLOSE_MINUTES', 60)
 
 # ─────────────────────────────────────────────
 #  DATA DIRECTORY
