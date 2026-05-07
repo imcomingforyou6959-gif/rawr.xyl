@@ -1,21 +1,3 @@
-"""
-RawrBot v2.0.0 – Production Discord Support Bot
-================================================
-Features:
-  • Long‑term memory (Redis + PostgreSQL)
-  • Sentiment‑based tonal adaptation + local LLM (Ollama)
-  • Full ticket lifecycle + intelligent auto‑close
-  • Web chat broadcast via SSE
-  • GitHub persistent storage for whitelist/blacklist/logs
-  • Advanced rate limiting (distributed / local fallback)
-  • Human‑like, friendly replies – never robotic
-  • Anti‑duplicate ticket creation, interaction timeout safety
-
-Environment:
-  BOT_TOKEN (secret), GUILD_ID, OWNER_ID, STAFF_ROLE_ID, MANAGER_ROLE_ID,
-  MODERATOR_ROLE_ID, TICKET_CATEGORY_ID, REVIEW_CHANNEL_ID, STORAGE_TOKEN (secret),
-  REDIS_URL, DATABASE_URL, OLLAMA_URL (optional), SENTRY_DSN (optional)
-"""
 
 import os, sys, asyncio, json, time, base64, hashlib, logging, re
 from typing import Optional, Set, Dict, Any, List, Tuple, Callable, Union
@@ -566,13 +548,6 @@ if ENABLE_REDIS and aioredis:
         redis_client = None
 
 pool = None
-if ENABLE_POSTGRES and asyncpg:
-    try:
-        pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
-        logger.info("PostgreSQL connected")
-    except Exception as e:
-        logger.warning(f"PostgreSQL not available: {e}")
-        pool = None
 
 ollama_session = None
 if ENABLE_OLLAMA:
@@ -829,6 +804,17 @@ class RawrBot(commands.Bot):
         await self.tree.sync(guild=guild)
         logger.info("Commands synced")
 
+    # PostgreSQL setup
+    if ENABLE_POSTGRES and asyncpg:
+        try:
+            self.pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+            logger.info("PostgreSQL connected")
+        except Exception as e:
+            logger.warning(f"PostgreSQL not available: {e}")
+            self.pool = None
+    else:
+        self.pool = None
+
     async def on_ready(self):
         self.ready = True
         logger.info(f"Logged in as {self.user.name} ({self.user.id})")
@@ -1073,7 +1059,7 @@ async def force_ticket(interaction: discord.Interaction, user: discord.User, rea
             overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
     channel = await guild.create_text_channel(f"forced-{user.name.lower().replace(' ','-')}", category=category, overwrites=overwrites)
     await ticket_manager.create_ticket(user.id, user.name, channel.id, TicketType.FORCED, interaction.user.name)
-    embed = discord.Embed(title="🎫 Forced Ticket", description=f"{user.mention} \- {reason or 'No reason'}", color=0xffaa00)
+    embed = discord.Embed(title="🎫 Forced Ticket", description=f"{user.mention} - {reason or 'No reason'}", color=0xffaa00)
     await channel.send(embed=embed)
     try: await user.send("📋 A staff member opened a ticket for you.")
     except: pass
