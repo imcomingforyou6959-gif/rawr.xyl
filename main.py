@@ -1092,7 +1092,10 @@ def is_whitelisted():
             return True
         if {r.id for r in interaction.user.roles} & whitelisted_roles:
             return True
-        await interaction.response.send_message("❌ You are not whitelisted to use this bot.", ephemeral=True)
+        try:
+            await interaction.response.send_message("❌ You are not whitelisted to use this bot.", ephemeral=True)
+        except (discord.NotFound, discord.HTTPException):
+            pass  # interaction expired, ignore
         return False
     return app_commands.check(predicate)
 
