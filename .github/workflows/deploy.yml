@@ -8,6 +8,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 360          # 6‑hour limit (free tier)
+
     steps:
     - uses: actions/checkout@v4
 
@@ -21,8 +23,11 @@ jobs:
 
     - name: Run bot
       env:
+        # 🔐 Secrets
         BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        STORAGE_TOKEN: ${{ secrets.STORAGE_TOKEN }}         # NEW – GitHub PAT for Storage repo
 
+        # 📦 Variables
         GUILD_ID:               ${{ vars.GUILD_ID }}
         OWNER_ID:               ${{ vars.OWNER_ID }}
 
@@ -40,5 +45,9 @@ jobs:
 
         USE_AWS:                ${{ vars.USE_AWS }}
         AWS_REGION:             ${{ vars.AWS_REGION }}
+
+        # Optional Storage overrides (uncomment if you want to use different repo/branch)
+        # STORAGE_REPO:           ${{ vars.STORAGE_REPO }}
+        # STORAGE_BRANCH:         ${{ vars.STORAGE_BRANCH }}
 
       run: python main.py
