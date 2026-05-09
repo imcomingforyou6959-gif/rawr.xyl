@@ -39,10 +39,6 @@ try:
 except ImportError:
     asyncpg = None
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# SAFE ENVIRONMENT PARSING
-# ──────────────────────────────────────────────────────────────────────────────
 def _env_int(key, default=0):
     val = os.getenv(key, '').strip()
     if val == '':
@@ -52,9 +48,6 @@ def _env_int(key, default=0):
     except ValueError:
         return default
 
-# ──────────────────────────────────────────────────────────────────────────────
-# CONFIGURATION
-# ──────────────────────────────────────────────────────────────────────────────
 TOKEN = os.getenv('BOT_TOKEN', '').strip()
 if not TOKEN:
     raise RuntimeError("BOT_TOKEN not set")
@@ -93,9 +86,6 @@ RATE_LIMIT_SECONDS      = 5
 MAX_MESSAGES_PER_MINUTE = 12
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# LOGGING SETUP
-# ──────────────────────────────────────────────────────────────────────────────
 if STRUCTLOG_AVAILABLE:
     structlog.configure(
         processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.dev.ConsoleRenderer()],
@@ -113,9 +103,6 @@ if SENTRY_AVAILABLE and os.getenv('SENTRY_DSN'):
     logger.info("Sentry enabled")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# DATA MODELS & HELPERS
-# ──────────────────────────────────────────────────────────────────────────────
 class TicketStatus(Enum):
     OPEN = "open"
     CLAIMED = "claimed"
@@ -266,9 +253,6 @@ class TicketManager:
 
 ticket_manager = TicketManager()
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GITHUB STORAGE (same as before)
-# ──────────────────────────────────────────────────────────────────────────────
 GITHUB_API_BASE = "https://api.github.com"
 
 async def _github_request(method, path, token, data=None):
@@ -311,7 +295,6 @@ async def _write_github_file(file_path, data):
     status, _ = await _github_request("PUT", file_path, STORAGE_TOKEN, data=payload)
     return status in (200, 201)
 
-# Storage wrappers (GitHub first, local JSON fallback)
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(os.path.join(DATA_DIR, "transcripts"), exist_ok=True)
@@ -480,9 +463,6 @@ async def load_data():
     logger.info(f"Loaded {len(whitelisted_users)} wl users, {len(whitelisted_roles)} wl roles, {len(blacklisted_users)} blacklisted")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TRANSCRIPT GENERATOR (HTML)
-# ──────────────────────────────────────────────────────────────────────────────
 def generate_transcript_html(ticket):
     rows = ""
     for entry in ticket.transcript_log:
@@ -550,11 +530,8 @@ def save_transcript(ticket):
     return path
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ADVANCED SERVICES (optional Redis, PostgreSQL, Ollama)
-# ──────────────────────────────────────────────────────────────────────────────
 redis_client = None
-pool = None  # PostgreSQL pool will be created in setup_hook
+pool = None
 ollama_session = None
 if ENABLE_OLLAMA:
     ollama_session = ClientSession()
@@ -573,9 +550,6 @@ async def ollama_generate(prompt, context=""):
     return None
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# TONE & SENTIMENT (simple)
-# ──────────────────────────────────────────────────────────────────────────────
 def analyze_sentiment(text):
     if not ENABLE_SENTIMENT or len(text) < 3:
         return SentimentType.NEUTRAL, 0.0
@@ -609,9 +583,6 @@ def humanize_response(base_text, tone=None):
     return base_text
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# RATE LIMITER (local, can use Redis too)
-# ──────────────────────────────────────────────────────────────────────────────
 class RateLimiter:
     def __init__(self):
         self.local = {}
@@ -621,7 +592,7 @@ class RateLimiter:
         if key not in self.local:
             self.local[key] = deque()
         dq = self.local[key]
-        # Sliding window: 12 messages per 60 secs, minimum 5 secs between
+        # Sliding window
         while dq and dq[0] < now - 60:
             dq.popleft()
         if len(dq) >= MAX_MESSAGES_PER_MINUTE:
@@ -638,12 +609,9 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# WEB CHAT (SSE)
-# ──────────────────────────────────────────────────────────────────────────────
 message_queue = deque(maxlen=100)
 sse_clients = set()
-web_user_channels = {}  # web_user_id -> channel_id (hash based)
+web_user_channels = {}
 
 async def broadcast_to_web(message):
     if not sse_clients:
@@ -703,9 +671,6 @@ async def forward_to_discord(message):
     await channel.send(embed=embed)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# HTTP ENDPOINTS
-# ──────────────────────────────────────────────────────────────────────────────
 async def sse_handler(request):
     headers = {'Content-Type':'text/event-stream','Cache-Control':'no-cache','Access-Control-Allow-Origin':'*','Connection':'keep-alive'}
     resp = web.StreamResponse(headers=headers)
@@ -743,9 +708,6 @@ async def health_handler(request):
     return web.json_response({'status':'alive','tickets':stats,'web_clients':len(sse_clients)})
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# PERMISSION HELPERS (no crash on 404)
-# ──────────────────────────────────────────────────────────────────────────────
 def is_owner():
     async def pred(interaction):
         return interaction.user.id == OWNER_ID
@@ -780,9 +742,6 @@ def get_staff_role_name(member):
     return "👤 Member"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# BOT CLASS (with PostgreSQL pool in setup_hook)
-# ──────────────────────────────────────────────────────────────────────────────
 class RawrBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -793,7 +752,7 @@ class RawrBot(commands.Bot):
         self.web_app = None
         self.runner = None
         self.ready = False
-        self.pool = None  # PostgreSQL pool will be set here
+        self.pool = None
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
@@ -861,9 +820,6 @@ class RawrBot(commands.Bot):
 bot = RawrBot()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# COMMAND AUTOCOMPLETE
-# ──────────────────────────────────────────────────────────────────────────────
 async def active_tickets_autocomplete(interaction, current):
     choices = []
     for uid,t in list(ticket_manager.tickets.items())[:25]:
@@ -872,9 +828,6 @@ async def active_tickets_autocomplete(interaction, current):
             choices.append(app_commands.Choice(name=label, value=str(uid)))
     return choices
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ALL COMMANDS (the missing ones added)
-# ──────────────────────────────────────────────────────────────────────────────
 @bot.tree.command(name="ping")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(f"🏓 Pong! `{round(bot.latency*1000)}ms`", ephemeral=True)
@@ -1318,9 +1271,6 @@ async def tickets(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# DM HANDLING (anti-duplicate)
-# ──────────────────────────────────────────────────────────────────────────────
 _dm_locks = {}
 @bot.event
 async def on_message(message: discord.Message):
@@ -1398,9 +1348,6 @@ async def handle_dm(message):
         await message.author.send("👋 Thanks for reaching out! A support ticket has been created. Our team will assist you shortly. 💙")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ERROR HANDLER
-# ──────────────────────────────────────────────────────────────────────────────
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CheckFailure):
@@ -1412,9 +1359,6 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         except: pass
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# MAIN
-# ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     try:
         logger.info("Starting RawrBot v2.0.0...")
