@@ -835,12 +835,6 @@ bot = RawrBot()
 async def prefix_ping(ctx):
     await ctx.send(f"🏓 Pong! Latency: `{round(bot.latency*1000)}ms`")
 
-@bot.command(name="help")
-async def prefix_help(ctx):
-    embed = discord.Embed(title="🆘 RawrBot Help", description="Use slash commands for full functionality. Here are basics:", color=0xef4444)
-    embed.add_field(name="!ping", value="Check bot latency", inline=False)
-    embed.add_field(name="/help", value="Full help menu", inline=False)
-    await ctx.send(embed=embed)
 
 # Slash
 @bot.tree.command(name="ping")
