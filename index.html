@@ -5,57 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     
     <title>rawr.xyz</title>
-    <meta name="description" content="rawr.xyz">
+    <meta name="description" content="somethin supposed to be here hmmmm...">
     <meta name="theme-color" content="#ef4444">
 
     <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     
-    <link href="./src/output.css" rel="stylesheet">
-    
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <style>
-        html, body, #root {
-            margin: 0;
-            padding: 0;
-            background-color: #050505;
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#050505',
+                        primary: '#ef4444',
+                        foreground: '#ffffff',
+                    }
+                }
+            }
         }
-        #root {
-            min-height: 100vh;
-            width: 100%;
-        }
-        .tailwind-ready {
-            visibility: visible;
-        }
-        .logo-glow {
-            filter: drop-shadow(0 0 8px rgba(239,68,68,0.3));
-        }
-        .footer-link {
-            transition: color 0.2s ease;
-            cursor: pointer;
-        }
-        .footer-link:hover {
-            color: #ef4444;
-        }
-        .announcement-badge {
-            background: rgba(239,68,68,0.12);
-            border-left: 3px solid #ef4444;
-        }
-        .rain-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-        }
-    </style>
+    </script>
 </head>
 <body>
 <div id="root"></div>
@@ -68,11 +43,11 @@
             { name: "Xeno", status: "verified" },
             { name: "Velocity", status: "verified" },
             { name: "Solara", status: "verified" },
-            { name: "Volt", status: "verified" },
+            { name: "Wave", status: "prob" },
             { name: "Sirhurt", status: "verified" }
         ];
         return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }} className="mt-12 sm:mt-16 w-full max-w-3xl px-6 sm:px-0">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }} className="mt-12 sm:mt-16 w-full max-w-3xl px-6 sm:px-0">
                 <div className="flex items-center gap-4 mb-6 sm:mb-8">
                     <div className="h-[1px] flex-1 bg-white/5"></div>
                     <span className="text-[8px] sm:text-[9px] font-mono text-white/20 tracking-[0.3em] sm:tracking-[0.4em] uppercase font-bold whitespace-nowrap">Verified compatibility</span>
@@ -83,6 +58,7 @@
                         <div key={name} className="flex items-center gap-2 group cursor-default">
                             <div className={`w-1.5 h-1.5 rounded-full ${status === 'verified' ? 'bg-green-500' : 'bg-yellow-500'} group-hover:bg-primary transition-all`}></div>
                             <span className="text-[9px] sm:text-[10px] font-mono font-black text-white/30 group-hover:text-white transition-colors tracking-tight uppercase">{name}</span>
+                            {status === 'beta' && <span className="text-[6px] bg-yellow-500/20 text-yellow-500 px-1.5 rounded">BETA</span>}
                         </div>
                     ))}
                 </div>
@@ -96,7 +72,7 @@
             version: "v1.5.1",
             status: "ONLINE",
             statusColor: "green",
-            changelog: "Improved stability + new hub integration"
+            changelog: "Improved stability and performance"
         });
         React.useEffect(() => {
             const fetchStatus = async () => {
@@ -107,9 +83,7 @@
                         const data = await response.json();
                         setConfig(data);
                     }
-                } catch (error) {
-                    console.log('Using default config');
-                }
+                } catch (error) {}
             };
             fetchStatus();
             const interval = setInterval(fetchStatus, 30000);
@@ -122,14 +96,13 @@
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             } catch (err) {
-                console.error('Failed to copy:', err);
                 alert('Failed to copy to clipboard');
             }
         };
         const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()`;
         return (
             <div className="flex flex-col items-center w-full">
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-8 sm:mt-12 shadow-2xl mx-6 sm:mx-0">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0">
                     <div className="flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 bg-white/5 border-b border-white/10">
                         <div className="flex items-center gap-3">
                             <i className="fas fa-code text-primary/50 text-xs"></i>
@@ -148,7 +121,7 @@
                         </div>
                         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleCopy} className="w-full py-3 sm:py-4 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-[11px] tracking-widest transition-all uppercase flex items-center justify-center gap-2">
                             <i className={`fas ${copied ? 'fa-check' : 'fa-copy'} text-[10px] sm:text-[11px]`}></i>
-                            {copied ? "Copied Successfully" : "Copy"}
+                            {copied ? "Copied Successfully" : "Copy Official Script"}
                         </motion.button>
                         {config.changelog && (
                             <div className="mt-4 text-center">
@@ -163,6 +136,114 @@
             </div>
         );
     }
+
+    const ScriptsPage = () => {
+        const scripts = [
+            {
+                id: 1,
+                name: "Universal",
+                description: "rivals, prison life etc",
+                version: "4.9.6",
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()',
+                tags: ["pretty cool", "idk"]
+            },
+            {
+                id: 2,
+                name: "HELLMET",
+                description: "made with love",
+                version: "1.1.5",
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Hellmet.lua"))()',
+                tags: ["ESP", "sum else idk"]
+            },
+            {
+                id: 3,
+                name: "nothing",
+                description: "made with no love",
+                version: "1.0.0",
+                loadstring: 'placeholder',
+                tags: ["place me away", "waiting"]
+            }
+        ];
+
+        const [copiedId, setCopiedId] = React.useState(null);
+
+        const copyScript = async (scriptText, id) => {
+            try {
+                await navigator.clipboard.writeText(scriptText);
+                setCopiedId(id);
+                setTimeout(() => setCopiedId(null), 2000);
+            } catch (err) {
+                alert('Failed to copy script');
+            }
+        };
+
+        return (
+            <div className="relative z-20 w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+                    <h2 className="text-4xl sm:text-5xl font-black font-mono text-white italic tracking-tight">
+                        <span className="text-primary">Library</span>
+                    </h2>
+                    <p className="text-white/30 font-mono text-[10px] sm:text-xs tracking-[0.3em] uppercase mt-3">
+                        All scripts
+                    </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {scripts.map((script) => (
+                        <motion.div
+                            key={script.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: script.id * 0.05 }}
+                            className="bg-black/40 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm hover:border-primary/30 transition-all group"
+                        >
+                            <div className="p-5">
+                                <div className="flex items-start justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors">
+                                        {script.name}
+                                    </h3>
+                                    <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-mono">
+                                        {script.version}
+                                    </span>
+                                </div>
+                                <p className="text-white/60 text-sm mb-4 min-h-[40px]">
+                                    {script.description}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {script.tags.map(tag => (
+                                        <span key={tag} className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded uppercase tracking-wider">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                                <div className="bg-black/60 rounded-lg p-3 mb-3 border border-white/5 overflow-x-auto">
+                                    <code className="text-primary/80 text-[10px] font-mono break-all select-all">
+                                        {script.loadstring}
+                                    </code>
+                                </div>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => copyScript(script.loadstring, script.id)}
+                                    className="w-full py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-black border border-primary/20 rounded-lg font-bold text-[10px] tracking-wider uppercase transition-all flex items-center justify-center gap-2"
+                                >
+                                    <i className={`fas ${copiedId === script.id ? 'fa-check' : 'fa-copy'} text-[10px]`}></i>
+                                    {copiedId === script.id ? 'Copied!' : 'Copy Script'}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+
+                <div className="mt-12 text-center">
+                    <p className="text-white/20 text-[9px] font-mono">
+                        <i className="fas fa-shield-alt mr-2"></i>
+                        All scripts are regularly updated.
+                    </p>
+                </div>
+            </div>
+        );
+    };
 
     const RainBackground = () => {
         const canvasRef = React.useRef(null);
@@ -215,14 +296,14 @@
         return <canvas ref={canvasRef} className="rain-canvas" />;
     };
 
-    const LinkButton = ({ href, icon, label, external = true, className = "" }) => (
+    const LinkButton = ({ href, icon, label, external = true }) => (
         <motion.a
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             href={href}
             target={external ? "_blank" : "_self"}
             rel={external ? "noopener noreferrer" : ""}
-            className={`flex items-center gap-3 sm:gap-4 px-6 sm:px-8 py-3 sm:py-4 bg-white/[0.02] border border-white/5 rounded-lg sm:rounded-2xl hover:bg-white/[0.06] hover:border-primary/40 transition-all group backdrop-blur-sm ${className}`}
+            className="flex items-center gap-3 sm:gap-4 px-6 sm:px-8 py-3 sm:py-4 bg-white/[0.02] border border-white/5 rounded-lg sm:rounded-2xl hover:bg-white/[0.06] hover:border-primary/40 transition-all group backdrop-blur-sm"
         >
             <i className={`${icon} text-white/30 group-hover:text-primary transition-colors text-lg sm:text-xl`}></i>
             <span className="font-bold text-[11px] sm:text-[13px] tracking-tight text-white/60 group-hover:text-white transition-colors">{label}</span>
@@ -230,124 +311,103 @@
     );
 
     function App() {
-        const [showTopNotice, setShowTopNotice] = React.useState(true);
+        const [page, setPage] = React.useState('home');
+        const [showNotification, setShowNotification] = React.useState(true);
 
         React.useEffect(() => {
-            const timer = setTimeout(() => setShowTopNotice(false), 5000);
+            const timer = setTimeout(() => setShowNotification(false), 5000);
             return () => clearTimeout(timer);
         }, []);
+
+        const isHome = page === 'home';
 
         return (
             <div className="relative min-h-screen w-full flex flex-col items-center justify-center bg-background px-6 sm:px-6 overflow-hidden py-16 sm:py-24">
                 <RainBackground />
+                <div className="scanline" />
                 <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
 
-                <motion.div 
-                    id="announcement"
-                    initial={{ opacity: 0, y: -30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="fixed top-4 left-1/2 transform -translate-x-1/2 z-30 announcement-badge rounded-xl p-3 sm:p-4 border border-primary/20 bg-primary/10 backdrop-blur-md w-[95%] sm:w-auto max-w-3xl"
-                >
-                    <div className="flex items-center gap-3">
-                        <i className="fas fa-gamepad text-primary text-sm"></i>
-                        <div>
-                            <p className="text-white text-xs sm:text-sm leading-relaxed">
-                                Most supported games moved into a single hub - More Coming Soon.
-                            </p>
-                        </div>
-                        <button 
-                            onClick={() => setShowTopNotice(false)}
-                            className="text-white/40 hover:text-white transition ml-2"
-                        >
-                            <i className="fas fa-times text-xs"></i>
-                        </button>
-                    </div>
-                </motion.div>
-
                 <AnimatePresence>
-                    {showTopNotice && (
-                        <motion.div initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 60 }} className="fixed top-24 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
-                            <i className="fas fa-crown mr-2 text-primary"></i>
-                            rawr.xyz
+                    {showNotification && (
+                        <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
+                            <i className="fas fa-shield-alt mr-2 text-primary"></i>
+                            connected to nothing
                         </motion.div>
                     )}
                 </AnimatePresence>
 
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }} className="relative z-20 flex flex-col items-center w-full max-w-4xl">
-                    
                     <motion.img
                         src="logo.png"
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-28 h-28 sm:w-44 sm:h-44 md:w-56 md:h-56 object-contain mb-8 sm:mb-12 logo-glow"
+                        className="w-28 h-28 sm:w-44 sm:h-44 md:w-56 md:h-56 object-contain mb-10 sm:mb-16 logo-glow"
                         alt="rawr.xyz logo"
                         onError={(e) => { e.target.src = "https://via.placeholder.com/224x224?text=RAWr"; }}
                     />
 
-                    <div className="text-center mb-8 sm:mb-12">
+                    <div className="text-center mb-10 sm:mb-16">
                         <h1 className="text-5xl sm:text-7xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase leading-tight">
                             rawr<span className="text-primary">.xyz</span>
                         </h1>
+                        <p className="text-white/20 font-mono text-[8px] sm:text-[10px] tracking-[0.35em] sm:tracking-[0.6em] mt-3 sm:mt-5 uppercase font-bold">
+                            one way to go
+                        </p>
                     </div>
 
-                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-10 sm:mb-14 w-full max-w-3xl">
-                        <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
-                        <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="YouTube" />
-                        <LinkButton href="https://discord.com/invite/64VAka5RPK" icon="fa-brands fa-discord" label="Discord" />
-                    </div>
-
-                    <div className="flex flex-wrap justify-center gap-3 mb-8">
-                        <motion.a 
-                            whileHover={{ scale: 1.02 }}
-                            href="#main"
-                            className="px-6 py-2.5 rounded-full bg-primary/20 text-primary border border-primary/30 text-[11px] font-black uppercase tracking-wider backdrop-blur-sm"
+                    <div className="flex gap-2 mb-8 bg-white/5 p-1 rounded-full border border-white/10">
+                        <button
+                            onClick={() => setPage('home')}
+                            className={`px-6 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition-all ${isHome ? 'bg-primary text-black' : 'text-white/40 hover:text-white/80'}`}
                         >
-                            <i className="fas fa-home mr-2"></i> home
-                        </motion.a>
-                        <motion.a 
-                            whileHover={{ scale: 1.02 }}
-                            href="#announcement"
-                            className="px-6 py-2.5 rounded-full bg-white/5 text-white/70 hover:text-white border border-white/10 text-[11px] font-black uppercase tracking-wider transition-all"
+                            <i className="fas fa-home mr-2"></i>Home
+                        </button>
+                        <button
+                            onClick={() => setPage('scripts')}
+                            className={`px-6 py-2 rounded-full text-xs font-bold tracking-wider uppercase transition-all ${!isHome ? 'bg-primary text-black' : 'text-white/40 hover:text-white/80'}`}
                         >
-                            <i className="fas fa-asterisk mr-2"></i> hub news
-                        </motion.a>
+                            <i className="fas fa-scroll mr-2"></i>Scripts
+                        </button>
                     </div>
 
-                    <ScriptBlock />
+                    {isHome ? (
+                        <>
+                            <div className="flex flex-wrap justify-center gap-3 sm:gap-5 mb-8 sm:mb-12">
+                                <LinkButton href="https://discord.gg/eMpUQzFrNG" icon="fa-brands fa-discord" label="Community" />
+                                <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
+                                <LinkButton href="https://www.youtube.com/@rawr.xy3" icon="fa-brands fa-youtube" label="Showcase" />
+                            </div>
+                            <ScriptBlock />
+                        </>
+                    ) : (
+                        <ScriptsPage />
+                    )}
                 </motion.div>
 
-                <footer className="mt-20 sm:mt-28 z-20 text-center select-none w-full max-w-4xl">
-                    <div className="text-[8px] sm:text-[10px] font-mono text-white/15 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-4">
-                        rawr.xyz / Made in 2026
+                <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
+                    <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
+                        rawr.xyz // find a way to live :3
                     </div>
-                    <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/30 tracking-normal">
-                        <a href="#" className="footer-link hover:text-primary transition">Home</a>
+                    <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/20 tracking-normal">
+                        <span className="footer-link" onClick={() => setPage('home')}>Home</span>
                         <span className="text-white/10">•</span>
-                        <a href="/tos" className="footer-link hover:text-primary transition">Terms of Service</a>
+                        <span className="footer-link" onClick={() => setPage('scripts')}>Scripts</span>
                         <span className="text-white/10">•</span>
-                        <a href="/privacy" className="footer-link hover:text-primary transition">Privacy Policy</a>
+                        <a href="/tos" className="footer-link">Terms of Service</a>
                         <span className="text-white/10">•</span>
-                        <a href="https://discord.com/invite/64VAka5RPK" target="_blank" rel="noopener noreferrer" className="footer-link hover:text-primary transition">
+                        <a href="/privacy" className="footer-link">Privacy Policy</a>
+                        <span className="text-white/10">•</span>
+                        <a href="https://discord.gg/eMpUQzFrNG" target="_blank" rel="noopener noreferrer" className="footer-link">
                             <i className="fab fa-discord mr-1"></i>Support
                         </a>
                     </div>
-                    <div className="text-[7px] sm:text-[8px] font-mono text-white/10 mt-4">
-                        (c) 2026 rawr.xyz - all assets belong to their respective owners
+                    <div className="text-[7px] sm:text-[8px] font-mono text-white/10 mt-3 tracking-normal">
+                        © 2026 rawr.xyz - All Rights Reserved
                     </div>
                 </footer>
             </div>
         );
     }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const rootEl = document.getElementById('root');
-        if (rootEl) {
-            setTimeout(() => {
-                rootEl.classList.add('tailwind-ready');
-            }, 50);
-        }
-    });
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
