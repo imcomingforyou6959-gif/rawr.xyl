@@ -141,27 +141,27 @@
         const scripts = [
             {
                 id: 1,
-                name: "Universal",
-                description: "rivals, prison life etc",
-                version: "4.9.6",
+                name: "Prison Life",
+                description: "Made with some love.",
+                version: "4.8.0",
                 loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()',
                 tags: ["pretty cool", "idk"]
             },
             {
                 id: 2,
+                name: "Rivals",
+                description: "made with love",
+                version: "1.0.0",
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Rivals.lua"))()',
+                tags: ["ESP", "Aimbot"]
+            },
+            {
+                id: 3,
                 name: "HELLMET",
                 description: "made with love",
                 version: "1.1.5",
                 loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Hellmet.lua"))()',
-                tags: ["ESP", "sum else idk"]
-            },
-            {
-                id: 3,
-                name: "nothing",
-                description: "made with no love",
-                version: "1.0.0",
-                loadstring: 'placeholder',
-                tags: ["place me away", "waiting"]
+                tags: ["ESP", "Sum else idk"]
             }
         ];
 
@@ -331,7 +331,7 @@
                     {showNotification && (
                         <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
                             <i className="fas fa-shield-alt mr-2 text-primary"></i>
-                            connected to nothing
+                            established for a good time
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -351,7 +351,7 @@
                             rawr<span className="text-primary">.xyz</span>
                         </h1>
                         <p className="text-white/20 font-mono text-[8px] sm:text-[10px] tracking-[0.35em] sm:tracking-[0.6em] mt-3 sm:mt-5 uppercase font-bold">
-                            one way to go
+                            Safety Security Execution
                         </p>
                     </div>
 
@@ -386,7 +386,7 @@
 
                 <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
                     <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
-                        rawr.xyz // find a way to live :3
+                        rawr.xyz // find a way to live :3 // v2.2
                     </div>
                     <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/20 tracking-normal">
                         <span className="footer-link" onClick={() => setPage('home')}>Home</span>
