@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     
-    <title>rawr.xyz — hub & scripts</title>
+    <title>rawr.xyz</title>
     <meta name="description" content="rawr.xyz">
     <meta name="theme-color" content="#ef4444">
 
@@ -33,7 +33,6 @@
     </script>
 
     <style>
-        /* additional */
         .logo-glow {
             filter: drop-shadow(0 0 8px rgba(239,68,68,0.3));
         }
@@ -56,7 +55,6 @@
 <script type="text/babel">
     const { motion, AnimatePresence } = window.Motion;
 
-    // ;( ---
     const CompatibilityBar = () => {
         const executors = [
             { name: "Xeno", status: "verified" },
@@ -84,14 +82,13 @@
         );
     };
 
-    // :)
     function ScriptBlock() {
         const [copied, setCopied] = React.useState(false);
         const [config, setConfig] = React.useState({
             version: "v1.5.1",
             status: "ONLINE",
             statusColor: "green",
-            changelog: "Improved stability + new hub integration"
+            changelog: "hm"
         });
         React.useEffect(() => {
             const fetchStatus = async () => {
@@ -159,7 +156,6 @@
         );
     }
 
-    // --- RAIN BACKGROUND (same aesthetic) ---
     const RainBackground = () => {
         const canvasRef = React.useRef(null);
         const animationRef = React.useRef(null);
@@ -226,7 +222,6 @@
     );
 
     function App() {
-        const [showAnnouncement, setShowAnnouncement] = React.useState(true);
         const [showTopNotice, setShowTopNotice] = React.useState(true);
 
         React.useEffect(() => {
@@ -240,19 +235,17 @@
                 <div className="scanline" />
                 <div className="fixed inset-0 bg-gradient-to-tr from-background via-transparent to-primary/5 z-10 pointer-events-none" />
 
-                {/* notification */}
                 <AnimatePresence>
                     {showTopNotice && (
                         <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }} className="fixed top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-primary/20 backdrop-blur-md border border-primary/30 rounded-lg sm:rounded-xl px-4 sm:px-5 py-2.5 sm:py-3 text-[8px] sm:text-xs font-mono">
                             <i className="fas fa-crown mr-2 text-primary"></i>
-                            rawr hub — unified & streamlined
+                            rawr.xyz
                         </motion.div>
                     )}
                 </AnimatePresence>
 
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }} className="relative z-20 flex flex-col items-center w-full max-w-4xl">
                     
-                    {/* assets */}
                     <motion.img
                         src="logo.png"
                         animate={{ y: [0, -10, 0] }}
@@ -266,10 +259,8 @@
                         <h1 className="text-5xl sm:text-7xl md:text-8xl font-black font-mono text-white italic tracking-tighter uppercase leading-tight">
                             rawr<span className="text-primary">.xyz</span>
                         </h1>
-                        {/* PH2*/}
                     </div>
 
-                    {/**/}
                     <div className="flex flex-wrap justify-center gap-3 mb-10 sm:mb-14">
                         <motion.a 
                             whileHover={{ scale: 1.02 }}
@@ -295,7 +286,6 @@
                         </motion.a>
                     </div>
 
-                    {/* */}
                     <motion.div 
                         id="announcement"
                         initial={{ opacity: 0, y: 15 }}
@@ -310,23 +300,21 @@
                             <div>
                                 <h3 className="text-white font-bold text-sm sm:text-base tracking-tight">Update</h3>
                                 <p className="text-white/70 text-xs sm:text-sm leading-relaxed mt-1">
-                                    We’ve moved <span className="text-primary font-semibold">most supported games</span> into a hub! 
-                                    Better performance, Casual updates, and more to come. 
-                                    Access everything through our new <span className="text-white/90 font-mono text-[11px]">Universal.lua</span> loader.
+                                    We have moved <span className="text-primary font-semibold">most supported games</span> into a hub. 
+                                    Better performance, casual updates, and more to come. 
+                                  meh <span className="text-white/90 font-mono text-[11px]">huh</span> huh
                                 </p>
                                 <div className="flex flex-wrap gap-3 mt-3">
                                     <span className="text-[9px] bg-primary/20 text-primary px-2 py-0.5 rounded-full">Updates</span>
                                     <span className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full">Universal and 3+ Games</span>
-                                    <span className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full">Good for u <3</span>
+                                    <span className="text-[9px] bg-white/5 text-white/40 px-2 py-0.5 rounded-full">Good for u</span>
                                 </div>
                             </div>
                         </div>
                     </motion.div>
 
-                    {/**/}
                     <ScriptBlock />
 
-                    {/**/}
                     <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mt-12 sm:mt-16 w-full max-w-3xl">
                         <LinkButton href="https://discord.com/invite/64VAka5RPK" icon="fa-brands fa-discord" label="Join Discord" />
                         <LinkButton href="https://github.com/imcomingforyou6959-gif/rawr.xyz" icon="fa-brands fa-github" label="Repository" />
@@ -334,10 +322,9 @@
                     </div>
                 </motion.div>
 
-                {/**/}
                 <footer className="mt-20 sm:mt-28 z-20 text-center select-none w-full max-w-4xl">
                     <div className="text-[8px] sm:text-[10px] font-mono text-white/15 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-4">
-                        rawr.xyz /\ Made in 2026 <3
+                        rawr.xyz / Made in 2026
                     </div>
                     <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/30 tracking-normal">
                         <a href="#" className="footer-link hover:text-primary transition">Home</a>
@@ -351,7 +338,7 @@
                         </a>
                     </div>
                     <div className="text-[7px] sm:text-[8px] font-mono text-white/10 mt-4">
-                        © 2026 rawr.xyz — all assets belong to their respective owners
+                        (c) 2026 rawr.xyz - all assets belong to this website
                     </div>
                 </footer>
             </div>
