@@ -508,7 +508,7 @@
             return () => clearInterval(interval);
         }, []);
         const handleCopy = async () => {
-            const scriptText = `loadstring(game:HttpGet("https://https://rawrs.zapto.org/Universal.lua"))()`;
+            const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()`;
             try {
                 await navigator.clipboard.writeText(scriptText);
                 setCopied(true);
@@ -518,7 +518,7 @@
                 alert('Failed to copy to clipboard');
             }
         };
-        const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/Universal.lua"))()`;
+        const scriptText = `loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()`;
         return (
             <div className="flex flex-col items-center w-full">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-3xl bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl overflow-hidden backdrop-blur-md mt-10 sm:mt-16 shadow-2xl mx-6 sm:mx-0">
@@ -563,10 +563,10 @@
             {
                 id: 1,
                 name: "Our Universal Script",
-                description: "Made with love.",
+                description: "Made with 0 love. and ts outdated",
                 version: "1.7.2",
-                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Universal.lua"))()',
-                tags: ["visual", "esp"]
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/Universal.lua", true))()',
+                tags: ["OUTDATED", "NIL"]
             },
             {
                 id: 2,
@@ -586,11 +586,11 @@
             },
             {
                 id: 4,
-                name: "Empty",
-                description: "Empty",
-                version: "1.0.0",
-                loadstring: 'PlaceHolder',
-                tags: ["Pending"]
+                name: "Rivals",
+                description: "ik its the same url as prison life its a hub",
+                version: "4.9.6",
+                loadstring: 'loadstring(game:HttpGet("https://rawrs.zapto.org/file.txt", true))()',
+                tags: ["hi"]
             },
             {
                 id: 5,
@@ -767,7 +767,7 @@
             return () => clearTimeout(timer);
         }, []);
 
-        // Determine if we're on home page to show the main script block and compatibility bar
+        // Determine
         const isHome = page === 'home';
 
         return (
@@ -838,7 +838,7 @@
                 {/* 2 */}
                 <footer className="mt-16 sm:mt-24 z-20 text-center select-none">
                     <div className="text-[8px] sm:text-[10px] font-mono text-white/10 tracking-[0.5em] sm:tracking-[0.8em] uppercase mb-3">
-                        rawr.xyz // find a way to live :3 // v2.2
+                        rawr.xyz // find a way to live :3
                     </div>
                     <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-[8px] sm:text-[9px] font-mono text-white/20 tracking-normal">
                         <span className="footer-link" onClick={() => setPage('home')}>Home</span>
