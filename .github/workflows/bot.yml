@@ -3,8 +3,8 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 */6 * * *' # Restarts every 6 hours to prevent timeout
-  workflow_dispatch:      # Allows you to start it manually
+    - cron: '0 */6 * * *' # 6H restart
+  workflow_dispatch:      # Manual
 
 jobs:
   build:
@@ -25,6 +25,6 @@ jobs:
 
       - name: Run Bot
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }} # We will set this in Step 3
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           GUILD_ID: ${{ secrets.GUILD_ID }}
         run: python main.py
